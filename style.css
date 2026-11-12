@@ -1,4 +1,4 @@
-/* Shiva Sathvik Diagnostic Lab. Design tokens first; change colours here. */
+/* Shiva Sathvika Diagnostic Lab. Design tokens first; change colours here. */
 :root{
   --navy:#0E3A31;--navy-d:#07211C;--teal:#1F9D74;--teal-d:#0F7A5C;--gold:#E8C547;--gold-d:#6B5200;--save:#15803D;--mint:#F4F2E2;--lite:#F3DC85;
   --ink:#16302A;--muted:#4F665D;--line:#E6E2CF;--bg:#FBF8EC;--white:#fff;--err:#B3261E;
@@ -1276,3 +1276,189 @@ body{background:#FFFDF6;color:var(--ink)}
 .wb-card.key{border-top:4px solid var(--gold)}
 .title-link::after{content:"i";display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:8px;border-radius:50%;background:var(--teal-d);color:#fff;font:italic 700 .8rem/1 Georgia,"Times New Roman",serif;vertical-align:middle;transition:transform .2s,background .2s}
 .title-link:hover::after{transform:scale(1.12);background:var(--navy)}
+
+
+/* ===== FIRST-VISIT BOOKING GUIDE ===== */
+.tip{position:fixed;left:20px;bottom:20px;width:min(360px,calc(100vw - 40px));background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(7,33,28,.3);padding:16px 18px 10px;z-index:255;opacity:0;transform:translateY(16px);transition:opacity .3s,transform .3s;pointer-events:none}
+.tip.show{opacity:1;transform:none;pointer-events:auto}
+.tip h3{font-size:1.02rem;margin:8px 0 2px}
+.tip p{font-size:.9rem;line-height:1.5;color:var(--muted);margin:4px 0 6px}
+.tip-dots{display:flex;gap:6px}
+.tip-dots i{width:22px;height:5px;border-radius:99px;background:var(--line);transition:background .25s}
+.tip-dots i.on{background:var(--teal)}
+.tip-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+.tip-next{min-height:44px;padding:10px 22px}
+.tip-hl{outline:3px solid var(--gold);outline-offset:4px;animation:tipPulse 1.6s ease-in-out infinite}
+@keyframes tipPulse{0%,100%{box-shadow:0 0 0 0 rgba(232,197,71,.55)}50%{box-shadow:0 0 0 12px rgba(232,197,71,0)}}
+@media(max-width:768px){
+  .tip{left:12px;right:12px;width:auto;bottom:calc(var(--tabh,68px) + 12px + env(safe-area-inset-bottom,0px))}
+}
+@media(prefers-reduced-motion:reduce){.tip{transition:none}.tip-hl{animation:none}}
+
+/* ===== Fixes: Best Price tile, compact founders ===== */
+.stat-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.stat-grid>div.stat-price{min-height:112px;padding:12px 10px;overflow:hidden;gap:2px}
+.stat-price .price-tag{width:34px;height:34px;margin-bottom:0}
+.stat-price b.pop-t{white-space:normal;font-size:1.3rem;line-height:1.15;color:var(--gold)}
+.stat-price span{white-space:normal;font-size:.9rem;font-weight:700;color:#fff;line-height:1.25}
+.stat-price::after{z-index:0}
+.stat-price>*{position:relative;z-index:1}
+@media(max-width:1000px){.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.stat-price b.pop-t{font-size:1.1rem}.stat-price span{font-size:.8rem}}
+
+.found-blast{padding:40px 0}
+.fb-head{margin-bottom:22px}
+.fb-head h2{font-size:clamp(1.5rem,3vw,2rem)}
+.fb-head p{font-size:.92rem;line-height:1.6;margin-top:10px}
+.fb-eyebrow{margin-bottom:8px;padding:3px 12px;font-size:.7rem}
+.fb-grid{gap:18px;max-width:760px}
+.fb-card{padding:20px 20px 18px;border-radius:20px}
+.fb-photo{width:84px;height:84px;margin-bottom:12px}
+.fb-photo::before{inset:-4px}
+.fb-photo::after{font-size:2rem}
+.fb-photo img{border-width:3px}
+.fb-card h3{font-size:1.2rem}
+.fb-role{margin:4px 0 8px;padding:2px 12px;font-size:.68rem}
+.fb-quote{font-size:.9rem;margin-bottom:8px}
+.fb-card p:last-child{font-size:.84rem;line-height:1.55}
+.fb-card:hover{transform:translateY(-4px)}
+@media(max-width:640px){.found-blast{padding:32px 0}.fb-photo{width:72px;height:72px}}
+
+/* FAQ question text and + icon vertically centred */
+.faq-q{align-items:center}
+.faq-q::after{line-height:1}
+
+/* ===== Home collection details form ===== */
+.bk-form{margin-top:18px}
+.bk-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.bk-grid .field{margin:8px 0}
+.bk-grid .bk-full{grid-column:1/-1}
+.bk-grid .field[hidden]{display:none}
+#cartDialog{width:min(520px,94vw);max-height:92vh}
+@media(max-width:480px){.bk-grid{grid-template-columns:1fr}}
+
+/* no prices: tidy layouts */
+.row{grid-template-columns:minmax(0,1fr) auto}
+.slot-note{margin:12px 0 4px;padding:10px 14px;border-radius:12px;background:#FFF6D6;color:#5C4A00;font-size:.92rem;text-align:center}
+.stat-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1000px){.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ---- compact "Why" ---- */
+.why-blast.why-mini{background:#fff;padding:34px 0;color:var(--navy)}
+.why-mini h2{color:var(--navy);font-size:clamp(1.3rem,3vw,1.8rem);text-align:center;margin-bottom:18px}
+.why-mini-list{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:0;padding:0}
+.why-mini-list li{display:grid;gap:2px;padding:14px 16px;border:1px solid var(--line);border-top:3px solid var(--gold);border-radius:14px;background:#FFFDF6}
+.why-mini-list b{font-family:var(--head);color:var(--navy);font-size:1rem}
+.why-mini-list span{color:var(--muted);font-size:.86rem;line-height:1.35}
+@media(max-width:800px){.why-mini-list{grid-template-columns:1fr 1fr}.why-blast.why-mini{padding:26px 0}}
+
+/* ---- how to book button + popups ---- */
+.floaters .fab-how{display:inline-flex;align-items:center;gap:8px;background:var(--gold);color:var(--navy)}
+.floaters .fab-how span{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--navy);color:var(--gold);font-size:.8rem}
+#howDialog,#doneDialog{width:min(440px,92vw);padding:24px}
+.how-steps{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:12px}
+.how-steps li{display:flex;gap:12px;align-items:flex-start}
+.how-steps li>b{flex:0 0 32px;height:32px;border-radius:50%;background:var(--teal-d);color:#fff;display:grid;place-items:center;font-family:var(--head)}
+.how-steps h4{margin:0;color:var(--navy);font-size:1rem}
+.how-steps p{margin:2px 0 0;font-size:.9rem}
+#howDialog .cart-btns,#doneDialog .cart-btns{margin-top:16px}
+#doneMsg{color:var(--navy);font-weight:600}
+@media(max-width:768px){
+  dialog#howDialog,dialog#doneDialog{width:100%;max-width:100%;margin:auto 0 0;border-radius:24px 24px 0 0;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+}
+
+/* ---- iPhone / Safari fixes ---- */
+#cartDialog{max-height:90vh;max-height:90dvh}
+.ct-body{min-height:0;-webkit-overflow-scrolling:touch}
+#cartDialog::backdrop,#bookDialog::backdrop{-webkit-backdrop-filter:blur(3px)}
+.site-header{-webkit-backdrop-filter:blur(12px)}
+html:has(dialog[open]){overflow:hidden}
+@supports (-webkit-touch-callout:none){
+  input,select,textarea{font-size:16px !important}
+  .field input,.field select,.field textarea{-webkit-appearance:none;appearance:none;border-radius:10px}
+  .field select{background-image:linear-gradient(45deg,transparent 50%,#555 50%),linear-gradient(135deg,#555 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:34px}
+}
+.no-dialog dialog:not([open]){display:none}
+.no-dialog dialog[open]{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);margin:0 auto;z-index:1000;max-height:90vh;overflow:auto;background:#fff}
+.no-dialog #cartDialog[open]{display:flex}
+
+/* ===== v9: Since 1992 badge, search-all dropdown, test descriptions, FAQ tabs, safety ===== */
+.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
+.since-badge{display:inline-flex;align-items:center;gap:10px;margin-bottom:14px;padding:7px 16px;border-radius:99px;background:rgba(232,197,71,.16);border:1px solid rgba(232,197,71,.55);color:#FFF1B0;font-family:var(--head);font-weight:800;font-size:.82rem;letter-spacing:.18em;text-transform:uppercase}
+.since-badge span{color:var(--gold)}
+.hero-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;max-width:520px;color:#CBE0D2;font-size:.82rem;font-weight:700}
+.hero-chips button{min-height:34px;padding:0 14px;border-radius:99px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;font-weight:700;font-size:.82rem;cursor:pointer}
+.hero-chips button:hover,.hero-chips button:focus-visible{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+.radius-pill{display:inline-block;margin:6px 0 10px;padding:6px 14px;border-radius:99px;background:#EFEAD0;border:1px solid var(--teal-d);color:var(--navy);font-weight:700;font-size:.9rem}
+
+/* search dropdown: all tests, plain descriptions, tap to add */
+.suggest{max-height:min(380px,52vh);overscroll-behavior:contain}
+.sg-head{position:sticky;top:-6px;z-index:2;margin:-6px -6px 4px;padding:10px 14px;background:#EFF7EE;color:var(--navy);font-size:.8rem;font-weight:700;border-radius:14px 14px 0 0}
+.sg-grp{padding:10px 12px 4px;font-family:var(--head);font-weight:800;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-d)}
+.sg-item{grid-template-columns:minmax(0,1fr) auto auto;align-items:center}
+.sg-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sg-desc{font-size:.78rem;line-height:1.35;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sg-cat:empty{display:none}
+.sg-add{min-height:34px;min-width:64px;padding:0 12px;border-radius:99px;border:1.5px solid var(--teal-d);background:#fff;color:var(--teal-d);font-weight:800;font-size:.8rem;cursor:pointer;white-space:nowrap}
+.sg-add.added{background:var(--teal-d);color:#fff}
+.sg-item:hover .sg-add:not(.added){background:#EFEAD0}
+@media(max-width:640px){.sg-item{grid-template-columns:minmax(0,1fr) auto}.suggest{max-height:min(340px,46vh)}}
+
+/* plain-language test text */
+.card-desc{margin:6px 0 10px;color:var(--muted);font-size:.9rem;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.row-desc{display:block;margin-top:2px;font-weight:400;font-size:.82rem;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.row .name .tag{display:inline-block;margin-top:4px}
+.dnote{margin-top:4px;color:var(--muted)}
+#detail .facts div{align-items:baseline}
+
+/* test tube My Tests icon */
+.fab-wa svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* FAQ tabs */
+.faq-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.faq-tab{min-height:44px;padding:0 18px;border-radius:99px;border:2px solid var(--line);background:#fff;color:var(--navy);font-family:var(--head);font-weight:700;font-size:.92rem;cursor:pointer}
+.faq-tab:hover{border-color:var(--teal-d)}
+.faq-tab.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.faq-more{margin-top:18px;text-align:center}
+.faq-more a{color:var(--teal-d);font-weight:800;text-decoration:underline}
+
+/* booking: 5 km confirmation */
+.chk{display:flex!important;align-items:flex-start;gap:10px;font-weight:700;cursor:pointer}
+.chk input{width:22px!important;height:22px;min-height:0!important;margin-top:1px;flex:none;accent-color:var(--teal-d)}
+
+/* "Serving since 1992" reads in order: label first, year second */
+.hy-num .hy-pre{margin:0 0 4px}
+.stat-grid .st-pre{display:block;font-size:.82rem;color:#CBE0D2;margin-bottom:2px}
+
+/* ===== v10: theme-coloured notes, SS logo, WhatsApp confirm step ===== */
+.slot-note{background:linear-gradient(120deg,var(--teal-d),var(--navy-d));color:#fff;border:0;font-size:.95rem;line-height:1.45;text-align:left;padding:12px 16px;box-shadow:0 4px 14px rgba(7,33,28,.18)}
+.slot-note b{color:var(--gold)}
+#cartDialog .bk-msg,.bk-msg{background:#E3F3EA;border:1px solid var(--teal-d)}
+.bk-msg p{color:var(--navy);font-weight:600}
+.bk-msg strong{color:var(--teal-d)}
+
+.brand-logo{display:block;height:46px;width:auto;flex-shrink:0}
+@media(max-width:900px){.brand-logo{height:42px}}
+.foot-logo{display:block;height:52px;width:auto;margin-bottom:10px;padding:6px 10px;border-radius:12px;background:#FBF8EC}
+.bk-ico{background:#FBF8EC;padding:6px}
+.bk-ico img{display:block;height:100%;width:auto}
+
+#doneDialog{text-align:left}
+.done-logo{display:block;margin:0 auto 6px;height:56px;width:auto}
+#doneDialog h3{text-align:center;color:var(--navy)}
+#doneMsg{margin:8px 0 10px;color:var(--ink)}
+.done-steps{margin:10px 0;padding-left:22px;display:grid;gap:6px;color:var(--ink)}
+.done-steps b{color:var(--teal-d)}
+.done-warn{margin:12px 0 0;padding:10px 14px;border-radius:12px;background:#FDECE8;border:1px solid #E8695A;color:#7A1F12;font-size:.92rem}
+#doneDialog.is-done #doneMsg{background:#E3F3EA;border:1px solid var(--teal-d);border-radius:12px;padding:12px 14px;font-weight:600;color:var(--navy)}
+.done-alt{text-align:center}
+.done-alt a{text-decoration:underline}
+
+/* Home collection pill: solid gold so it stands out on the dark card */
+.athome-card .radius-pill{background:var(--gold);border-color:var(--gold);color:var(--navy-d);box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.athome-card .radius-pill b{color:var(--navy-d)}
+
+/* Logo: transparent everywhere, no tile behind it */
+.foot-logo{background:transparent;padding:0}
+.bk-ico{background:transparent;padding:0}
+.brand-logo,.done-logo{background:transparent}

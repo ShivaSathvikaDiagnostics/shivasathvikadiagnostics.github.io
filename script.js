@@ -1,77 +1,185 @@
 "use strict";
 
+/* Old iPhones (before iOS 15.4) have no <dialog>.showModal(): add a simple fallback so booking still works */
+(function dialogFallback() {
+  if (typeof HTMLDialogElement === "function" && HTMLDialogElement.prototype.showModal) return;
+  document.documentElement.classList.add("no-dialog");
+  document.querySelectorAll("dialog").forEach((dlg) => {
+    Object.defineProperty(dlg, "open", { get() { return dlg.hasAttribute("open"); } });
+    dlg.showModal = () => dlg.setAttribute("open", "");
+    dlg.close = () => { if (dlg.hasAttribute("open")) { dlg.removeAttribute("open"); dlg.dispatchEvent(new Event("close")); } };
+  });
+})();
+
 /* =====================================================================
    EDITABLE CONFIGURATION: change values here, the whole page updates.
    Everything below marked SAMPLE is demonstration data, not confirmed
    by the laboratory. Replace it before launch.
    ===================================================================== */
 const BUSINESS_INFO = {
-  name: "Shiva Sathvik Diagnostic Lab & X-ray Imaging",
+  name: "Shiva Sathvika Diagnostic Lab & X-ray Imaging",
   location: "Chikkaballapur, Karnataka, India",
   hours: "Monday–Saturday, 7:00 AM–8:30 PM",
   openFrom: "07:00",
   openTo: "20:30"
 };
-const PHONE_NUMBER = "9343601092";
-const WHATSAPP_NUMBER = "919343601092";   // Digits only with country code. Empty = disabled.
+const PHONE_NUMBER = "8217654091";
+const WHATSAPP_NUMBER = "918217654091";   // Digits only with country code. Empty = disabled.
 const SETTINGS = {
   reportHours: 24,                                   // SAMPLE target, confirm with lab
-  collectionArea: "To be confirmed by the lab",      // REPLACE with real coverage
+  collectionArea: "Within 5 km of the lab",
   collectionHours: "To be confirmed by the lab",     // REPLACE with real timings
-  freeCollectionMin: 500                             // SAMPLE bill amount (₹)
+  slotsPerDay: 50                                    // home-collection slots per day (today + tomorrow only)
 };
 
+const SINCE_YEAR = 1992;
 const CATS = { H:"Haematology", U:"Urine Analysis", S:"Stool Analysis", B:"Bio-chemistry", L:"Lipid Profile", V:"Liver Function", O:"Hormones", R:"Serology", M:"Microbiology" };
-const CAT_DESC = { H:"A haematology test.", U:"A urine analysis test.", S:"A stool analysis test.", B:"A bio-chemistry test.", L:"A lipid profile test.", V:"A liver function test.", O:"A hormone or related test.", R:"A serology test.", M:"A microbiology or pathology test." };
+const SAMPLE_BY_CAT = { H:"Blood", U:"Urine", S:"Stool", B:"Blood", L:"Blood", V:"Blood", O:"Blood", R:"Blood", M:"As named in the test" };
 
-// REAL catalogue, transcribed from the lab's displayed price list. Row: [name, category, price in ₹].
-// Report time, sample type and fasting rules are not on the list, so the site says "confirm with lab".
+// Test catalogue. Row: [name, category, plain-language description, preparation (optional), sample (optional)].
+// Prices are intentionally NOT stored or shown. Preparation shown is general guidance: the lab confirms for your case.
 const TEST_ROWS = [
-  ["HB%","H",100],["RBC Count","H",50],["WBC Count","H",50],["D.C. (Differential Count)","H",50],["ESR","H",50],["AEC (Absolute Eosinophil Count)","H",150],["CBC","H",300],["PCV","H",30],["MCV","H",30],["MCH","H",30],["MCHC","H",30],["BT (Bleeding Time)","H",50],["CT (Clotting Time)","H",50],["Platelet Count","H",150],["PT with INR","H",450],["Reticulocyte Count","H",400],["LE Cell Phenomenon","H",450],["Peripheral Smear","H",300],["Malarial Parasites","H",200],["Blood Group & Rh","H",50],["Dengue NS1, IgM, IgG","H",500],["Pf / Pv (Malaria)","H",250],
-  ["Urine Sugar","U",20],["Urine Albumin","U",20],["Urine Microscopy","U",20],["Bile Salt","U",20],["Bile Pigment","U",20],["Ketone Bodies","U",150],["24 Hrs Urine Protein","U",500],["Urobilinogen","U",100],["Bence Jones Protein","U",100],["Pregnancy Test","U",100],
-  ["Stool Routine","S",150],["Stool Occult","S",50],["Stool Substances","S",40],
-  ["FBS (Fasting Blood Sugar)","B",50],["PPBS (Post-Prandial Blood Sugar)","B",50],["RBS (Random Blood Sugar)","B",50],["GTT (Glucose Tolerance Test)","B",250],["Glycosylated Hb (HbA1c)","B",500],["Urea","B",100],["S. Creatinine","B",100],["Uric Acid","B",150],["RFT (Renal Function Test)","B",300],["S. Calcium","B",200],["CPK","B",300],["CPK-MB","B",400],["Amylase","B",600],["Sodium","B",150],["Potassium","B",150],["Acid Phosphatase","B",350],["CA 125","B",1000],
-  ["Lipid Profile","L",400],["Total Cholesterol","L",100],["Triglycerides","L",100],["HDL","L",100],["LDL & VLDL","L",200],
-  ["Liver Function Test (LFT)","V",600],["T. Bilirubin","V",100],["D. Bilirubin","V",100],["T. Protein","V",100],["Albumin (Serum)","V",100],["Globulin","V",100],["A/G Ratio","V",100],["SGPT","V",100],["SGOT","V",100],["Alkaline Phosphatase","V",180],
-  ["T3, T4, TSH","O",500],["LH / FSH / Prolactin","O",1200],["Testosterone","O",1200],["TORCH","O",2000],["B-HCG","O",800],
-  ["Widal","R",100],["VDRL","R",150],["RA Factor","R",150],["HIV","R",250],["CRP","R",150],["ASLO","R",150],["Dilution (each)","R",100],["HBsAg","R",200],["Mantoux","R",150],
-  ["Urine (Microbiology)","M",500],["Faeces (Microbiology)","M",500],["Pus (Microbiology)","M",500],["Throat (Microbiology)","M",500],["Swab (Microbiology)","M",500],["Sputum (Microbiology)","M",500],["Sputum for AFB","M",150],["Gram Stain","M",250],["Semen Analysis","M",200],["Blood (Microbiology)","M",650],["Histopathology","M",1000]
+  ["HB%","H","Measures haemoglobin, the part of red blood cells that carries oxygen. Low levels can mean anaemia."],
+  ["RBC Count","H","Counts the red blood cells that carry oxygen around your body."],
+  ["WBC Count","H","Counts white blood cells, which fight infection. A high count often points to infection or inflammation."],
+  ["D.C. (Differential Count)","H","Shows the share of each type of white blood cell. Helps find the cause of infection, allergy or other problems."],
+  ["ESR","H","Shows how fast red cells settle in a tube of blood. A raised value is a general sign of inflammation in the body."],
+  ["AEC (Absolute Eosinophil Count)","H","Counts eosinophils, white cells that rise in allergies, asthma and some worm infections."],
+  ["CBC","H","Complete Blood Count: a broad check of red cells, white cells and platelets. Often the first test a doctor asks for."],
+  ["PCV","H","Packed Cell Volume: the percentage of your blood made up of red cells."],
+  ["MCV","H","The average size of your red blood cells. Helps tell the type of anaemia."],
+  ["MCH","H","The average amount of haemoglobin in each red blood cell."],
+  ["MCHC","H","How concentrated the haemoglobin is inside your red blood cells."],
+  ["BT (Bleeding Time)","H","How long a tiny cut takes to stop bleeding. Checks how well platelets and blood vessels work."],
+  ["CT (Clotting Time)","H","How long blood takes to clot. Checks your blood's ability to form a clot."],
+  ["Platelet Count","H","Counts platelets, the cells that help blood clot. Important in dengue and bleeding problems."],
+  ["PT with INR","H","Shows how quickly your blood clots. Used to monitor blood-thinner medicines and to check clotting and liver health."],
+  ["Reticulocyte Count","H","Counts young red blood cells to show how well the bone marrow is making new red cells."],
+  ["LE Cell Phenomenon","H","A blood smear test once used to help detect lupus (SLE), an autoimmune condition."],
+  ["Peripheral Smear","H","Blood is viewed under a microscope to check the shape and look of blood cells. Helps find anaemia, infection and blood disorders."],
+  ["Malarial Parasites","H","Looks for malaria parasites in a blood smear under the microscope. Malaria is a mosquito-borne fever illness."],
+  ["Blood Group & Rh","H","Finds your ABO blood group and whether you are Rh positive or negative. Needed for transfusions and in pregnancy."],
+  ["Dengue NS1, IgM, IgG","H","Detects the dengue virus and your body's antibodies against it. Dengue is a mosquito-borne fever with low platelets."],
+  ["Pf / Pv (Malaria)","H","A rapid test for the two common malaria parasites, P. falciparum (Pf) and P. vivax (Pv). Malaria causes fever with chills."],
+  ["Urine Sugar","U","Checks for sugar (glucose) in urine, which can be a sign of diabetes."],
+  ["Urine Albumin","U","Checks for the protein albumin in urine. Protein in urine can point to kidney problems."],
+  ["Urine Microscopy","U","Looks at urine under a microscope for pus cells, red cells, crystals and germs. Helps find urine infection and stones."],
+  ["Bile Salt","U","Checks urine for bile salts, which can appear in some liver and bile duct problems."],
+  ["Bile Pigment","U","Checks urine for bile pigment (bilirubin), seen in jaundice and liver disease."],
+  ["Ketone Bodies","U","Checks for ketones, made when the body burns fat for energy. Important in uncontrolled diabetes, vomiting and starvation."],
+  ["24 Hrs Urine Protein","U","Measures the total protein lost in urine over a full day. Used to assess kidney function.","Collect all urine for 24 hours in the container the lab gives you."],
+  ["Urobilinogen","U","Checks urine for urobilinogen, which changes in liver disease and some blood disorders."],
+  ["Bence Jones Protein","U","Looks for a special protein in urine linked to a bone marrow condition called multiple myeloma."],
+  ["Pregnancy Test","U","Detects the pregnancy hormone (hCG) in urine.","First-morning urine gives the most reliable result."],
+  ["Stool Routine","S","Examines stool for colour, mucus, blood, parasites and pus cells. Finds infections and digestive problems.","Bring a fresh sample in the container the lab gives you."],
+  ["Stool Occult","S","Looks for hidden blood in stool, which can be a sign of bleeding in the digestive tract.","Bring a fresh sample in the container the lab gives you."],
+  ["Stool Substances","S","Checks stool for unabsorbed substances such as sugars. Helps explain digestion problems and loose motions.","Bring a fresh sample in the container the lab gives you."],
+  ["FBS (Fasting Blood Sugar)","B","Blood sugar after fasting. Used to detect and keep track of diabetes.","Fast for 8 to 10 hours. Plain water is fine."],
+  ["PPBS (Post-Prandial Blood Sugar)","B","Blood sugar after a meal. Shows how well your body handles sugar.","Taken 2 hours after you start a meal."],
+  ["RBS (Random Blood Sugar)","B","Blood sugar at any time of day. No fasting needed.","No fasting needed."],
+  ["GTT (Glucose Tolerance Test)","B","Measures how your body clears sugar after a sugar drink. Used to diagnose diabetes, including diabetes in pregnancy.","Fast overnight (8 to 12 hours). The test takes a couple of hours at the lab."],
+  ["Glycosylated Hb (HbA1c)","B","Your average blood sugar over the last 2 to 3 months. The best test to see long-term diabetes control.","No fasting needed."],
+  ["Urea","B","A waste product filtered by the kidneys. High levels can mean the kidneys are not working well."],
+  ["S. Creatinine","B","A muscle waste filtered by the kidneys. A key test of kidney function."],
+  ["Uric Acid","B","High levels can cause gout (joint pain) and kidney stones."],
+  ["RFT (Renal Function Test)","B","A group of tests, such as urea and creatinine, that show how well your kidneys are working."],
+  ["S. Calcium","B","Calcium in the blood. Important for bones, nerves and muscles. Checks bone, kidney and parathyroid health."],
+  ["CPK","B","An enzyme that rises when muscles or the heart are damaged."],
+  ["CPK-MB","B","The heart-specific part of CPK. Rises after heart muscle injury such as a heart attack."],
+  ["Amylase","B","An enzyme made by the pancreas. High levels can suggest pancreatitis (pain in the upper belly)."],
+  ["Sodium","B","A salt that balances body fluids. Abnormal levels can cause weakness, cramps or confusion."],
+  ["Potassium","B","A mineral vital for the heart and muscles. Too high or too low can affect heart rhythm."],
+  ["Acid Phosphatase","B","An enzyme test sometimes used to check prostate conditions."],
+  ["CA 125","B","A marker that can be raised in some ovarian conditions. Doctors use it along with other tests, never alone to diagnose cancer."],
+  ["Lipid Profile","L","Measures cholesterol and fats in your blood to check your risk of heart disease.","Fast for 9 to 12 hours. Plain water is fine."],
+  ["Total Cholesterol","L","The total amount of cholesterol in your blood. High levels raise the risk of heart disease."],
+  ["Triglycerides","L","A type of fat in the blood. High levels raise the risk of heart disease and pancreatitis.","Fast for 9 to 12 hours. Plain water is fine."],
+  ["HDL","L","The 'good' cholesterol that helps clear other cholesterol from your arteries. Higher is better."],
+  ["LDL & VLDL","L","The 'bad' cholesterol types that build up in arteries and harm the heart. Lower is better."],
+  ["Liver Function Test (LFT)","V","A group of tests (bilirubin, proteins and liver enzymes) that show how well your liver is working."],
+  ["T. Bilirubin","V","Total bilirubin, a yellow pigment. High levels cause jaundice (yellow eyes and skin)."],
+  ["D. Bilirubin","V","Direct bilirubin. Helps tell whether jaundice comes from the liver or the bile ducts."],
+  ["T. Protein","V","Total protein in the blood (albumin and globulin). Reflects liver and kidney health and nutrition."],
+  ["Albumin (Serum)","V","The main protein made by the liver. Low levels may suggest liver or kidney disease, or poor nutrition."],
+  ["Globulin","V","Blood proteins that include antibodies. Changes can point to infection, liver disease or immune conditions."],
+  ["A/G Ratio","V","The ratio of albumin to globulin. An unusual ratio can hint at liver, kidney or immune problems."],
+  ["SGPT","V","Also called ALT. A liver enzyme that rises when liver cells are damaged."],
+  ["SGOT","V","Also called AST. An enzyme from the liver, heart and muscle. Rises with liver or muscle damage."],
+  ["Alkaline Phosphatase","V","An enzyme from the liver and bones. High levels may point to bile duct or bone conditions."],
+  ["T3, T4, TSH","O","The thyroid profile. Shows whether your thyroid gland is underactive or overactive."],
+  ["LH / FSH / Prolactin","O","Hormones that control periods, ovulation and sperm production. Checked in fertility and period problems."],
+  ["Testosterone","O","The main male hormone. Also checked in women with excess hair growth or irregular periods."],
+  ["TORCH","O","Screens for infections (Toxoplasma, Rubella, CMV, Herpes) that can harm an unborn baby. Often done in pregnancy or when planning one."],
+  ["B-HCG","O","Measures the pregnancy hormone in blood. Confirms pregnancy earlier than a urine test."],
+  ["Widal","R","A blood test used to help diagnose typhoid fever."],
+  ["VDRL","R","A screening test for syphilis."],
+  ["RA Factor","R","Helps diagnose rheumatoid arthritis, a cause of painful, swollen joints."],
+  ["HIV","R","Screens for HIV infection."],
+  ["CRP","R","C-reactive protein. Rises with infection and inflammation."],
+  ["ASLO","R","Checks for a past streptococcal (throat) infection, linked to rheumatic fever."],
+  ["Dilution (each)","R","Repeats a serology test at different dilutions to measure how strong the antibody level is."],
+  ["HBsAg","R","Screens for Hepatitis B infection, a virus that affects the liver."],
+  ["Mantoux","R","A skin test for tuberculosis (TB) exposure. A small injection is given on the forearm.","You must come back after 48 to 72 hours to have it read.","Skin test (forearm)"],
+  ["Urine (Microbiology)","M","A urine culture. Grows germs from urine to find a urine infection and the antibiotic that works.","Collect a midstream sample in a sterile container from the lab.","Urine"],
+  ["Faeces (Microbiology)","M","A stool culture. Finds germs causing loose motions or infection and the antibiotic that works.","Bring a fresh sample in the container the lab gives you.","Stool"],
+  ["Pus (Microbiology)","M","A culture of pus from a wound or abscess to find the germ and the antibiotic that works.","","Pus"],
+  ["Throat (Microbiology)","M","A culture of a throat swab to find germs causing a sore throat.","","Throat swab"],
+  ["Swab (Microbiology)","M","A culture of a swab from a wound or body site to find the infecting germ.","","Swab"],
+  ["Sputum (Microbiology)","M","A culture of coughed-up sputum to find germs causing a chest infection.","Rinse your mouth, then cough deeply. Early morning is best.","Sputum"],
+  ["Sputum for AFB","M","Looks for tuberculosis (TB) bacteria in sputum.","Early-morning sputum is best. The lab may ask for more than one sample.","Sputum"],
+  ["Gram Stain","M","A quick stain that shows whether bacteria are present and what type. Guides treatment.","","Sample as advised by the lab"],
+  ["Semen Analysis","M","Checks sperm count, movement and shape. Used in fertility checks.","Abstain for 2 to 7 days before. Follow the lab's collection instructions.","Semen"],
+  ["Blood (Microbiology)","M","A blood culture. Grows germs from blood to find serious infections and the antibiotic that works.","Best collected before you start antibiotics.","Blood"],
+  ["Histopathology","M","A microscope study of a tissue sample (biopsy) to diagnose conditions, including cancer.","","Tissue sample"]
 ];
 const POPULAR_TEST_IDS = ["cbc","fbs-fasting-blood-sugar","glycosylated-hb-hba1c","lipid-profile","t3-t4-tsh","liver-function-test-lft","rft-renal-function-test","esr","crp","widal"];
 
-// HEALTH CHECKUP OFFERS built from the real tests above. The original price is the sum of the test prices;
-// "disc" is the offer discount percentage. EDIT "disc" to the lab's real discount before relying on it.
+// HEALTH CHECKUP packages built from the tests above (no prices).
 const PACKAGES = [
-  { name:"Basic Health Check", desc:"A starting set of routine checks.", who:"Yearly routine check", tests:["CBC","FBS (Fasting Blood Sugar)","Lipid Profile","Urine Sugar","Urine Albumin","Urine Microscopy"], disc:10 },
+  { name:"Basic Health Check", desc:"A starting set of routine checks.", who:"Yearly routine check", tests:["CBC","FBS (Fasting Blood Sugar)","Lipid Profile","Urine Sugar","Urine Albumin","Urine Microscopy"] },
   { name:"Full Body Checkup", desc:"A wider panel covering several body systems.", who:"Complete peace of mind", tests:["CBC","ESR","FBS (Fasting Blood Sugar)","Glycosylated Hb (HbA1c)","Lipid Profile","Liver Function Test (LFT)","RFT (Renal Function Test)","T3, T4, TSH","Urine Sugar","Urine Albumin","Urine Microscopy"], disc:20, badge:"Most Popular" },
-  { name:"Diabetes Care", desc:"Sugar-related checks and kidney markers.", who:"For diabetics and at-risk adults", tests:["FBS (Fasting Blood Sugar)","PPBS (Post-Prandial Blood Sugar)","Glycosylated Hb (HbA1c)","Urine Sugar","Urine Albumin","RFT (Renal Function Test)"], disc:10 },
-  { name:"Heart Health", desc:"Cholesterol and related heart markers.", who:"For heart-health tracking", tests:["Lipid Profile","CRP","CPK","CPK-MB","FBS (Fasting Blood Sugar)"], disc:10 },
-  { name:"Thyroid Profile", desc:"Thyroid hormones with a blood count and lipid check.", who:"For thyroid follow-up", tests:["T3, T4, TSH","CBC","Lipid Profile"], disc:10 },
-  { name:"Senior Citizen", desc:"A routine panel for older adults.", who:"Ages 60 and above", tests:["CBC","FBS (Fasting Blood Sugar)","Glycosylated Hb (HbA1c)","Lipid Profile","Liver Function Test (LFT)","RFT (Renal Function Test)","S. Calcium","Urine Sugar","Urine Albumin"], disc:15 },
-  { name:"Women's Wellness", desc:"Common checks for women's health.", who:"For women of all ages", tests:["CBC","ESR","T3, T4, TSH","S. Calcium","Blood Group & Rh","Urine Microscopy"], disc:10 }
+  { name:"Diabetes Care", desc:"Sugar-related checks and kidney markers.", who:"For diabetics and at-risk adults", tests:["FBS (Fasting Blood Sugar)","PPBS (Post-Prandial Blood Sugar)","Glycosylated Hb (HbA1c)","Urine Sugar","Urine Albumin","RFT (Renal Function Test)"] },
+  { name:"Heart Health", desc:"Cholesterol and related heart markers.", who:"For heart-health tracking", tests:["Lipid Profile","CRP","CPK","CPK-MB","FBS (Fasting Blood Sugar)"] },
+  { name:"Thyroid Profile", desc:"Thyroid hormones with a blood count and lipid check.", who:"For thyroid follow-up", tests:["T3, T4, TSH","CBC","Lipid Profile"] },
+  { name:"Senior Citizen", desc:"A routine panel for older adults.", who:"Ages 60 and above", tests:["CBC","FBS (Fasting Blood Sugar)","Glycosylated Hb (HbA1c)","Lipid Profile","Liver Function Test (LFT)","RFT (Renal Function Test)","S. Calcium","Urine Sugar","Urine Albumin"] },
+  { name:"Women's Wellness", desc:"Common checks for women's health.", who:"For women of all ages", tests:["CBC","ESR","T3, T4, TSH","S. Calcium","Blood Group & Rh","Urine Microscopy"] }
 ];
 
 
-const REVIEWS = [   // Replace with real, permitted patient feedback when you collect it
-  { t: "Reports were ready the same evening and the staff explained everything clearly. Very neat and hygienic lab.", w: "Patient · Blood tests" },
-  { t: "Sample collection was quick and almost painless. The price was lower than what I was quoted elsewhere.", w: "Patient · Health checkup" },
-  { t: "I come here for my father's regular sugar and thyroid tests. Always on time and the team is patient with elders.", w: "Patient · Regular tests" },
-  { t: "Walked in early morning, no waiting, and got my report on WhatsApp the same day. Very convenient.", w: "Patient · Online report" },
-  { t: "Home collection saved us a trip with a small child. The person who came was polite and careful.", w: "Patient · Home collection" }
-];
-const FAQS = [
-  ["Do I need to fast before my test?", "Some tests need fasting and many do not. Follow your doctor's instructions and confirm the preparation for your test with the lab."],
-  ["How long do test reports take?", "Timing depends on the test. Confirm the expected report time with the lab."],
-  ["What payment methods are accepted?", "Ask the lab which payment methods it accepts."],
-  ["Are senior citizen discounts available?", "Ask the lab whether a senior citizen discount applies to your tests."]
+const FAQ_GROUPS = [
+  { id:"web", label:"Website", items:[
+    ["How do I add a test?", "Type a test name (or a need like sugar or thyroid) in the search bar and tap the test you want. It is added to My Tests, the test tube icon at the top. You can add as many tests as you need."],
+    ["How do I book?", "Tap the test tube icon (My Tests), choose today or tomorrow, fill in the patient's details and tap Book Home Collection. WhatsApp opens with your details. Press Send to finish your booking."],
+    ["Do I need to create an account?", "No. You do not need to sign up or log in."],
+    ["Is my personal information safe?", "Your details are used only to book your home collection. They are not saved in your browser, and the form is cleared after you book."],
+    ["Can I just walk in without booking?", "Yes. You can walk in during working hours (Monday to Saturday, 7:00 AM to 8:30 PM). Use Get Directions in the Contact section to find us, behind Sadhur Matt."],
+    ["How do I get my reports?", "Your reports are sent to you online, so you do not need to come back to the lab."]
+  ]},
+  { id:"tests", label:"Tests", items:[
+    ["How do I know which test I need?", "Your doctor decides which tests you need. On this site, tap any test name to read in simple words what it checks. Health packages group common tests together."],
+    ["Do I need to fast before my test?", "Some tests need fasting, for example fasting blood sugar and lipid profile (usually 8 to 12 hours, plain water is fine). Many tests, such as HbA1c and CBC, do not. Each test's details show the usual preparation. Follow your doctor's advice and confirm with the lab."],
+    ["How long do reports take?", "Timing depends on the test. Ask the lab for the expected report time when you book."],
+    ["What sample will be taken?", "Most tests use a small blood sample. Others use urine, stool or a swab. The test details show the sample type."],
+    ["Can I take my regular medicines before the test?", "Usually yes, but some tests need special care. Ask your doctor, and tell the lab which medicines you take."],
+    ["Will the test details here replace my doctor's advice?", "No. The descriptions are general information to help you understand each test. Your doctor will explain what your result means for you."]
+  ]},
+  { id:"home", label:"Home Collection", items:[
+    ["Is home sample collection available at my address?", "Yes, if your address is within 5 km of the lab (Behind Sadhur Matt, Chikkaballapur). The booking form asks you to confirm this. If you live further away, please call the lab."],
+    ["How many bookings are taken each day?", "Slots are limited each day. You can book for today until 4 PM. If today is full, book for tomorrow, which is open at any time."],
+    ["When will the team reach my home?", "After you tap Book, WhatsApp opens with your details. Press Send. Our team then confirms with you on WhatsApp. Please keep your phone with you."],
+    ["How should I prepare at home?", "If your test needs fasting, follow the instructions shown for it. Stay at the address you gave and keep your phone switched on."],
+    ["Can I book for another person, such as my parent?", "Yes. Enter the patient's name, age and your contact number. Use My Tests to add the tests, and tap Add another if the same test is needed for two people."],
+    ["Is there a charge for home collection?", "Please confirm the charges with the lab on WhatsApp or by phone before the visit."]
+  ]}
 ];
 
 /* =====================================================================
    DATA BUILD AND VALIDATION
    ===================================================================== */
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const TESTS = TEST_ROWS.map(([name, c, price]) => ({
-  id: slug(name), name, cat: CATS[c], catKey: c, price, desc: CAT_DESC[c]
+const TESTS = TEST_ROWS.map(([name, c, desc, prep, sample]) => ({
+  id: slug(name), name, cat: CATS[c], catKey: c, desc: desc || "",
+  prep: prep || "", sample: sample || SAMPLE_BY_CAT[c]
 }));
 const TEST_MAP = new Map(TESTS.map((t) => [t.id, t]));
 if (TEST_MAP.size !== TESTS.length) console.warn("Duplicate test IDs found.");
@@ -79,9 +187,6 @@ PACKAGES.forEach((p) => {
   p.id = "pkg-" + slug(p.name);
   p.testIds = p.tests.map(slug);
   p.testIds.forEach((id) => { if (!TEST_MAP.has(id)) console.warn("Package", p.name, "references unknown test", id); });
-  p.orig = p.testIds.reduce((s, id) => s + (TEST_MAP.has(id) ? TEST_MAP.get(id).price : 0), 0);
-  p.price = Math.round(p.orig * (1 - p.disc / 100) / 10) * 10;
-  p.discount = Math.round((1 - p.price / p.orig) * 100);
 });
 POPULAR_TEST_IDS.forEach((id) => { if (!TEST_MAP.has(id)) console.warn("Unknown popular test", id); });
 const PKG_MAP = new Map(PACKAGES.map((p) => [p.id, p]));
@@ -92,7 +197,6 @@ const getItem = (id) => TEST_MAP.get(id) || PKG_MAP.get(id);
    ===================================================================== */
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-const rupee = (n) => "₹" + n.toLocaleString("en-IN");
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* Click effects: ripple on buttons, sparks and "+1" on add/claim */
@@ -137,6 +241,16 @@ function btn(label, cls, onClick, aria) {
   b.addEventListener("click", onClick);
   return b;
 }
+/* Input safety: everything typed by a visitor is cleaned before it is sent to WhatsApp, the sheet or email.
+   (The page itself only uses textContent, never innerHTML, so typed text can never run as code.) */
+const BAD_CHARS = /[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g;
+function clean(v, max) {
+  return String(v == null ? "" : v).replace(/[\r\n]+/g, ", ").replace(BAD_CHARS, " ").replace(/[<>`*~\\]/g, "").replace(/\s{2,}/g, " ").trim().slice(0, max);
+}
+function cleanLines(v, max) {
+  return String(v == null ? "" : v).replace(/\r/g, "").replace(/[\u0000-\u0009\u000B-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g, "").replace(/[<>]/g, "").trim().slice(0, max);
+}
+const NAME_OK = /^[\p{L}\p{M}][\p{L}\p{M} .'\-]{1,59}$/u;
 const phoneDigits = PHONE_NUMBER.replace(/[^\d+]/g, "");
 const phoneOk = /^\+?\d{8,15}$/.test(phoneDigits);
 const waOk = /^\d{11,15}$/.test(WHATSAPP_NUMBER);
@@ -198,19 +312,220 @@ try {
     .filter((x) => x && getItem(x.id))
     .map((x) => ({ id: x.id, n: Math.min(9, Math.max(1, x.n | 0 || 1)) }));
 } catch (e) { cart = []; }
-let offerNote = "", flash = null, sumTok = 0, shownSum = 0;
+let offerNote = "", flash = null;
 const cartDlg = $("#cartDialog"), askDlg = $("#askDialog");
 const find = (id) => cart.find((x) => x.id === id);
 const qtyOf = (id) => (find(id) ? find(id).n : 0);
 const cartCount = () => cart.reduce((sum, x) => sum + x.n, 0);
-const cartTotal = () => cart.reduce((sum, x) => sum + getItem(x.id).price * x.n, 0);
-const cartLines = () => cart.map((x, i) => { const it = getItem(x.id); return (i + 1) + ". " + it.name + (it.testIds ? " (checkup offer, " + it.tests.length + " tests)" : "") + (x.n > 1 ? " x" + x.n : "") + " - " + rupee(it.price * x.n); });
+const cartLines = () => cart.map((x, i) => { const it = getItem(x.id); return (i + 1) + ". " + it.name + (it.testIds ? " (checkup, " + it.tests.length + " tests)" : "") + (x.n > 1 ? " x" + x.n : ""); });
 const saveCart = () => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} };
+
+/* ---- Home collection form: landmarks (edit this list to match your area) ---- */
+/* Landmark (main locality) -> areas shown after it is chosen. Edit freely: add a landmark, or add/remove areas. */
+const LANDMARK_AREAS = {
+  "Vapasandra": ["Vapasandra", "Manchanabelle Road"],
+  "Reshmigudu Market": ["Reshmigudu Market"],
+  "Bhagath Singh Nagar": ["Bhagath Singh Nagar", "Darga Mohalla"],
+  "Prashanth Nagar": ["Prashanth Nagar"],
+  "Police Quarters": ["Police Quarters", "Timmakka Layout", "Prashanth Nagar"],
+  "Municipal Layout": ["Municipal Layout", "Dinnehosahalli Road"],
+  "Gangamidde": ["Gangamidde", "Nimalakalakunte"],
+  "New District Hospital": ["New District Hospital", "TG Bank"],
+  "Newton Grammar School": ["Newton Grammar School", "Municipal College", "Sweepers Colony"],
+  "Municipal Corporation": ["Municipal Corporation", "Doddamasudi"],
+  "Alaragadda": ["Alaragadda", "Walasanna", "Nagarthapete", "Kandwarapete"],
+  "A.K. Colony": ["A.K. Colony", "Al-Kalam School"],
+  "Bapuji Nagar": ["Bapuji Nagar"],
+  "Kandavara": ["Kandavara"],
+  "Nandi Road": ["Nandi Road", "Quasar Nagar"],
+  "Girls School": ["Girls School", "Basavanagudi"],
+  "Fort Area": ["Fort Area"],
+  "Sir M. Visvesvaraya Layout": ["Sir M. Visvesvaraya Layout"],
+  "Karkane Pete": ["Karkane Pete", "Dharmachatra Road"],
+  "Darga Mohalla": ["Darga Mohalla", "KSRTC Road"],
+  "Shanti Nagar": ["Shanti Nagar", "H.S. Garden"],
+  "Kelaginatotagalu": ["Kelaginatotagalu"],
+  "Chamarajapete": ["Chamarajapete", "Nakkalakunte", "Sunnakalu Street"],
+  "DVT Pete": ["DVT Pete", "Karkane Pete"],
+  "Garakarollu": ["Garakarollu", "DBM Road"],
+  "Yelepete": ["Yelepete", "Kurubara Street"],
+  "Koracharapete": ["Koracharapete", "Venugopalaswamy Temple"],
+  "Ambedkar Nagar": ["Ambedkar Nagar"],
+  "Sunnakalu Street": ["Sunnakalu Street", "Indiranagar", "Badavara Sangha Colony", "Vapasandra"]
+};
+const LANDMARKS = Object.keys(LANDMARK_AREAS);
+const AREAS = [...new Set(Object.values(LANDMARK_AREAS).flat())].sort((x, y) => x.localeCompare(y));
+/* ---- Google Sheets booking + 50 slots per day ----
+   Paste the Web app URL of your Google Apps Script here (see SETUP-GOOGLE-SHEET.md).
+   Leave empty to book on WhatsApp only (no slot counting). */
+const BOOKING_API_URL = "PASTE_YOUR_WEB_APP_URL_HERE";   // MUST look like https://script.google.com/macros/s/AKfy.../exec  (NOT a /macros/library/ link)
+/* Spam protection (Cloudflare Turnstile, free). Paste your SITE key here to turn it on.
+   Leave empty to keep it off. The SECRET key goes in Apps Script, never here (see SETUP-GOOGLE-SHEET.md). */
+const BOOKING_API = /^https:\/\/script\.google\.com\//.test(BOOKING_API_URL) ? BOOKING_API_URL : "";   // not set up yet = WhatsApp only, no errors shown
+const TURNSTILE_SITE_KEY = "";
+let tsWidget = null, tsToken = "", tsLoading = false;
+function setupTurnstile() {
+  if (!TURNSTILE_SITE_KEY || tsWidget !== null || tsLoading) return;
+  const box = $("#tsBox"); if (!box) return;
+  const draw = () => { tsWidget = window.turnstile.render(box, { sitekey: TURNSTILE_SITE_KEY, callback: (t) => { tsToken = t; }, "expired-callback": () => { tsToken = ""; }, "error-callback": () => { tsToken = ""; } }); };
+  if (window.turnstile) { draw(); return; }
+  tsLoading = true;
+  const sc = document.createElement("script");
+  sc.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+  sc.async = true; sc.onload = () => { tsLoading = false; draw(); }; sc.onerror = () => { tsLoading = false; };
+  document.head.appendChild(sc);
+}
+function resetTurnstile() { tsToken = ""; if (tsWidget !== null && window.turnstile) { try { window.turnstile.reset(tsWidget); } catch (e) {} } }
+/* Clears every patient field so nothing is left on screen after booking */
+/* Area list: only the areas of the chosen landmark, then "Other" to type your own.
+   If the landmark is "Other", every area is offered. */
+function buildAreaOptions() {
+  const as = bk("bkArea"), keep = as.value, lm = bk("bkLandmark").value;
+  as.textContent = "";
+  if (!lm) { as.append(new Option("Select landmark first", "")); bk("bkAreaOtherWrap").hidden = true; return; }
+  const list = LANDMARK_AREAS[lm] || AREAS;
+  as.append(new Option("Select your area", ""));
+  list.forEach((x) => as.append(new Option(x, x)));
+  as.append(new Option("Other (type your area)", "Other"));
+  if (keep && [...as.options].some((o) => o.value === keep)) as.value = keep;
+  else if (list.length === 1) as.value = list[0];
+  bk("bkAreaOtherWrap").hidden = as.value !== "Other";
+}
+function clearBkForm() {
+  const f = $("#bkForm"); if (f) f.reset();   // the doctor box goes back to "Self"
+  bk("bkOtherWrap").hidden = true;
+  bk("bkAreaOtherWrap").hidden = true;
+  buildAreaOptions();
+  buildDayOptions();
+}
+/* Opens the WhatsApp app directly (whatsapp://), not the wa.me web page.
+   The wa.me link is only kept as a small backup if the app does not open. */
+function waApp(text) { return "whatsapp://send?phone=" + WHATSAPP_NUMBER + "&text=" + encodeURIComponent(text); }
 function waLink(text) { return "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(text); }
-function cartMessage() {
-  return "Hello " + BUSINESS_INFO.name + ", I would like to book HOME SAMPLE COLLECTION.\n\nTests / packages:\n" + cartLines().join("\n") +
-    "\n\nEstimated total: " + rupee(cartTotal()) + " (to be confirmed by the lab)" + (offerNote ? "\n\n" + offerNote : "") +
-    "\n\nPlease check availability and confirm a slot. I will share my name, address and preferred date and time here.";
+const DETAIL_KEY = "ssdl_patient";
+const bk = (id) => $("#" + id);
+function readDetails() {
+  const lm = bk("bkLandmark").value === "Other" ? clean(bk("bkOther").value, 60) : (LANDMARKS.includes(bk("bkLandmark").value) ? bk("bkLandmark").value : "");
+  return { name: clean(bk("bkName").value, 60), age: (() => { const a = parseInt(bk("bkAge").value, 10); return Number.isFinite(a) ? String(a).slice(0, 3) : ""; })(), phone: bk("bkPhone").value.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "").slice(0, 10),
+    doctor: clean(bk("bkDoctor").value, 60) || "Self", landmark: lm,
+    gender: ["Male", "Female", "Other"].includes(bk("bkGender").value) ? bk("bkGender").value : "",
+    area: bk("bkArea").value === "Other" ? clean(bk("bkAreaOther").value, 60) : (AREAS.includes(bk("bkArea").value) ? bk("bkArea").value : "") };
+}
+function dayLabel(offset) {
+  const d = new Date(); d.setDate(d.getDate() + offset);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+function cartMessage(no) {
+  const d = readDetails(), o = +bk("bkDay").value;
+  return "Hello Shiva Sathvika Lab 🙏\nI want to confirm my *Home Sample Collection* booking." + (no ? "\nBooking No: " + no : "") +
+    "\n\n📅 " + (o ? "Tomorrow" : "Today") + ", " + dayLabel(o) +
+    "\n\n*Tests*\n" + cartLines().join("\n") +
+    "\n\n*Patient*\n" + d.name + ", " + d.age + " yrs, " + d.gender + "\n📞 " + d.phone + "\nDoctor: " + d.doctor +
+    "\n\n📍 " + d.area + "\nLandmark: " + d.landmark +
+    "\n\nPlease confirm my slot. Thank you.";
+}
+/* Slots: read from the Google Sheet (server counts, max 50 per day) */
+let slots = null;
+const allFull = () => !!(slots && slots.days.every((x) => x.left <= 0 || x.open === false || (x.offset === 0 && istHour() >= 16)));
+function fetchTimeout(url, opt, ms) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+  return fetch(url, { ...opt, signal: c.signal }).finally(() => clearTimeout(t));
+}
+/* Current hour in India, so the 4 PM cutoff is the same for every visitor */
+function istHour() { return +new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()) % 24; }
+/* Friendly message when a day cannot be booked */
+function dayMsg(o, closed) {
+  return closed
+    ? "🕓 Today's booking is closed (after 4 PM).\nPlease book for tomorrow - slots are open now."
+    : "😊 Slots for " + (o ? "tomorrow" : "today") + " are full.\nPlease book for " + (o ? "the next day" : "tomorrow") + ".";
+}
+function buildDayOptions() {
+  const sel = bk("bkDay"), keep = sel.value || "0";
+  sel.replaceChildren();
+  [0, 1].forEach((o) => {
+    const info = slots && slots.days.find((x) => x.offset === o), closed = !!info && info.open === false || (o === 0 && istHour() >= 16), full = !!info && info.left <= 0, off = closed || full;
+    const op = new Option((o ? "Tomorrow" : "Today") + " (" + dayLabel(o) + ")" + (closed ? " - Closed after 4 PM" : info ? (full ? " - Full, book for tomorrow" : " - Slots available") : ""), String(o));
+    op.disabled = off; sel.append(op);
+  });
+  const opts = Array.from(sel.options), pick = opts.find((x) => !x.disabled && x.value === keep) || opts.find((x) => !x.disabled);
+  if (pick) sel.value = pick.value;
+  const av = $("#slotAvail");
+  if (av) {
+    const t0 = opts[0] && !opts[0].disabled;
+    av.innerHTML = t0 ? "<b>Slots available today.</b> You can also book for tomorrow." : (pick ? "<b>Today's slots are full.</b> Please book for tomorrow." : "<b>All slots are full right now.</b> Please call the lab.");
+  }
+}
+function setSlotStatus(t) { const e = $("#slotStatus"); if (e) { e.textContent = t; e.hidden = !t; } }
+let slotsBusy = false;
+async function refreshSlots() {
+  if (!BOOKING_API || slotsBusy) return;
+  if (!/^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[^/]+\/exec$/.test(BOOKING_API)) {
+    setSlotStatus("Booking link is wrong. It must be the Web app URL ending with /exec."); return;
+  }
+  slotsBusy = true; setSlotStatus("Checking slots…");
+  let got = null, why = "";
+  for (let i = 0; i < 3 && !got; i++) {                       // Google can be slow to wake up: try up to 3 times
+    try {
+      const r = await fetchTimeout(BOOKING_API + (BOOKING_API.indexOf("?") > -1 ? "&" : "?") + "action=slots&t=" + Date.now(), {}, 15000);
+      const j = await r.json();
+      if (j && j.days) got = j; else why = j && j.error ? String(j.error).slice(0, 80) : "bad reply";
+    } catch (e) { why = "no reply"; }
+    if (!got && i < 2) await new Promise((res) => setTimeout(res, 800 * (i + 1)));
+  }
+  slotsBusy = false;
+  if (got) { slots = got; buildDayOptions(); renderCart(); setSlotStatus(""); }   // on failure the last known counts stay on screen
+  else setSlotStatus("Could not check slots (" + why + "). Tap here to try again.");
+}
+async function submitBooking(d) {
+  if (!BOOKING_API) return { ok: true, offline: true };   // no sheet connected: WhatsApp only, no slot counting
+  const body = JSON.stringify({ ...d, day: +bk("bkDay").value, tests: cartLines().join("; "), hp: "", ts: tsToken });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetchTimeout(BOOKING_API, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body }, 12000);
+      const j = await r.json();
+      if (j && typeof j.ok === "boolean") return j;
+    } catch (e) {}
+  }
+  return { ok: false, network: true };
+}
+(function initBkForm() {
+  buildDayOptions();
+  const ss = $("#slotStatus"); if (ss) { ss.addEventListener("click", () => refreshSlots()); }
+  const sel = bk("bkLandmark");
+  sel.append(new Option("Select nearest landmark", ""));
+  LANDMARKS.forEach((l) => sel.append(new Option(l, l)));
+  sel.append(new Option("Other (type below)", "Other"));
+  sel.addEventListener("change", () => { bk("bkOtherWrap").hidden = sel.value !== "Other"; buildAreaOptions(); });
+  bk("bkArea").addEventListener("change", () => { bk("bkAreaOtherWrap").hidden = bk("bkArea").value !== "Other"; });
+  buildAreaOptions();
+  bk("bkDoctor").addEventListener("focus", (e) => { if (e.target.value === "Self") e.target.select(); });   // type to replace "Self"
+  bk("bkDoctor").addEventListener("blur", (e) => { if (!e.target.value.trim()) e.target.value = "Self"; });
+  try { localStorage.removeItem(DETAIL_KEY); } catch (e) {}   // privacy: patient details are never kept in the browser (also wipes data saved by older versions)
+})();
+["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther", "bkRadius"].forEach((id) => {
+  const clear = () => { bk("e-" + id).textContent = ""; bk(id).removeAttribute("aria-invalid"); };
+  bk(id).addEventListener("input", clear); bk(id).addEventListener("change", clear);
+});
+function validateBk() {
+  const d = readDetails(), errs = {};
+  if (d.name.length < 2) errs.bkName = "Please enter the patient's name.";
+  else if (!NAME_OK.test(d.name)) errs.bkName = "Use letters only in the name.";
+  const age = Number(d.age);
+  if (!d.age || !(age >= 0 && age <= 120)) errs.bkAge = "Enter a valid age.";
+  if (!/^[6-9]\d{9}$/.test(d.phone)) errs.bkPhone = "Enter a valid 10-digit mobile number.";
+  if (!bk("bkLandmark").value) errs.bkLandmark = "Please choose a landmark.";
+  else if (!d.landmark) errs.bkOther = "Please type your landmark.";
+  if (!d.gender) errs.bkGender = "Please select gender.";
+  if (!bk("bkArea").value) errs.bkArea = "Please select your area.";
+  else if (!d.area) errs.bkAreaOther = "Please type your area.";
+  if (!bk("bkRadius").checked) errs.bkRadius = "Home collection is only within 5 km of the lab. Please call us if you live further away.";
+  ["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther", "bkRadius"].forEach((id) => {
+    bk("e-" + id).textContent = errs[id] || "";
+    bk(id).toggleAttribute("aria-invalid", !!errs[id]);
+  });
+  const first = Object.keys(errs)[0];
+  if (first) { bk(first).focus(); return null; }
+  return d;
 }
 
 /* Cross-check: does this item share tests with something already in the list? */
@@ -259,17 +574,6 @@ function fly(src) {
     { transform: "translate(" + dx + "px," + dy + "px) scale(.35)", opacity: 0.5 }
   ], { duration: 700, easing: "cubic-bezier(.5,0,.25,1)" }).onfinish = () => { dot.remove(); bump(target); };
 }
-function tweenSum(to) {
-  const el = $("#ctSum"), tok = ++sumTok;
-  if (reduceMotion) { el.textContent = rupee(to); shownSum = to; return; }
-  const from = shownSum, t0 = performance.now();
-  (function f(now) {
-    if (tok !== sumTok) return;
-    const p = Math.min((now - t0) / 380, 1);
-    el.textContent = rupee(Math.round(from + (to - from) * (1 - Math.pow(1 - p, 3))));
-    if (p < 1) requestAnimationFrame(f); else shownSum = to;
-  })(t0);
-}
 
 /* Add / change / remove */
 function syncBtn(b) {
@@ -305,6 +609,7 @@ function onAddTap(id, src) {
 function addItem(id, src) {
   cart.push({ id, n: 1 }); flash = { id, type: "add" };
   saveCart(); renderCart(); fxAdd(); fly(src);
+  document.dispatchEvent(new Event("ssdl:added"));
   toast(getItem(id).name + " added to My Tests.", "View", "#cart");
 }
 function changeQty(id, d, src) {
@@ -348,24 +653,25 @@ function renderCart() {
     const qty = h("div", "ct-qty");
     qty.append(btn("−", "", () => changeQty(x.id, -1), "Decrease quantity of " + it.name), h("span", "", String(x.n)), btn("+", "", () => changeQty(x.id, 1), "Increase quantity of " + it.name));
     const row = h("div", "ct-row2");
-    row.append(qty, h("b", "ct-price", rupee(it.price * x.n)));
+    row.append(qty);
     li.append(info, btn("×", "ct-rm", () => removeItem(x.id), "Remove " + it.name), row);
     list.append(li);
   });
   const of = $("#ctOffer");
   of.hidden = !offerNote; of.textContent = offerNote ? "🏷 " + offerNote : "";
   $("#ctEmpty").hidden = cart.length > 0;
-  $("#ctTotal").hidden = !cart.length;
-  tweenSum(cartTotal());
   const go = $("#ctGo"), hint = $("#ctHint");
-  if (cart.length && waOk) { go.href = waLink(cartMessage()); go.removeAttribute("aria-disabled"); hint.hidden = true; }
+  if (cart.length && waOk && allFull()) {
+    go.setAttribute("aria-disabled", "true"); hint.hidden = false;
+    hint.textContent = "😊 Slots are full right now. Please try the next day or call the lab.";
+  } else if (cart.length && waOk) { go.href = "#"; go.removeAttribute("aria-disabled"); hint.hidden = true; }
   else {
     go.removeAttribute("href"); go.setAttribute("aria-disabled", "true"); hint.hidden = false;
     hint.textContent = !cart.length ? "Select at least one test or package to continue." : "WhatsApp is not set up yet. Please call the lab.";
   }
   flash = null;
 }
-function openCart() { renderCart(); setMenu(false); if (!cartDlg.open) cartDlg.showModal(); }
+function openCart() { renderCart(); setMenu(false); if (!cartDlg.open) cartDlg.showModal(); refreshSlots(); setupTurnstile(); }
 $("#ctClose").addEventListener("click", () => cartDlg.close());
 $("#ctCancel").addEventListener("click", () => {
   const prev = cart.map((x) => ({ ...x })), prevNote = offerNote;
@@ -379,9 +685,88 @@ $("#ctCancel").addEventListener("click", () => {
 });
 let undoCart = null;
 cartDlg.addEventListener("click", (e) => { if (e.target === cartDlg) cartDlg.close(); });
-$("#ctGo").addEventListener("click", (e) => {
-  if (e.currentTarget.getAttribute("aria-disabled") === "true") { e.preventDefault(); return; }
-  setTimeout(() => cartDlg.close(), 150);
+/* After Book: WhatsApp must be SENT to finish. Three stages:
+   start = "One last step", back = asked when the visitor returns from WhatsApp, done = "Booking placed". */
+let doneTimer = null, doneState = null;
+const doneDlg = $("#doneDialog");
+function setDoneStage(stage) {
+  const st = doneState; if (!st) return;
+  st.stage = stage;
+  const first = st.res.offline ? "Send the WhatsApp message to book your slot for " + st.when + "."
+    : (st.res.duplicate ? "You already have a slot for " + st.when + ". " : "Your slot for " + st.when + " is saved. ") + "Send us the WhatsApp message to confirm it.";
+  const open = $("#doneWa"), sent = $("#doneSent"), close = $("#doneClose");
+  $("#doneSteps").hidden = stage !== "start";
+  $("#doneWarn").hidden = stage === "done";
+  $("#doneAlt").hidden = stage === "done";
+  open.hidden = stage === "done"; sent.hidden = stage === "done"; close.hidden = stage !== "done";
+  doneDlg.classList.toggle("is-done", stage === "done");
+  if (stage === "start") {
+    $("#doneT").textContent = "One last step";
+    $("#doneMsg").textContent = first;
+    open.textContent = "Open WhatsApp"; sent.textContent = "I sent the message";
+  } else if (stage === "back") {
+    $("#doneT").textContent = "Did you press Send in WhatsApp?";
+    $("#doneMsg").textContent = "Your booking is complete only after we receive your message.";
+    open.textContent = "No, open WhatsApp again"; sent.textContent = "Yes, I sent it";
+  } else {
+    $("#doneT").textContent = "✅ Booking placed";
+    $("#doneMsg").textContent = "Thank you! We got your request for " + st.when + ". Our team will check it and confirm on WhatsApp soon." + (st.res.bookingNo ? " Your booking no. is " + st.res.bookingNo + "." : "") + " Please keep your phone with you.";
+  }
+}
+function openWhatsApp() {
+  if (!doneState) return;
+  doneState.opened = true; clearTimeout(doneTimer);
+  location.href = doneState.wa.app;
+}
+function showDone(res, wa, when) {
+  doneState = { res, wa, when, stage: "start", opened: false };
+  $("#doneWa").href = wa.app;
+  $("#doneWeb").href = wa.web;
+  setDoneStage("start");
+  doneDlg.showModal();
+  clearTimeout(doneTimer);
+  doneTimer = setTimeout(openWhatsApp, 2500);   // opens WhatsApp for them; the button is there if it does not
+}
+$("#doneWa").addEventListener("click", (e) => { e.preventDefault(); openWhatsApp(); });
+$("#doneWeb").addEventListener("click", () => { clearTimeout(doneTimer); if (doneState) doneState.opened = true; });
+$("#doneSent").addEventListener("click", () => { clearTimeout(doneTimer); setDoneStage("done"); });
+function closeDone() {
+  clearTimeout(doneTimer);
+  const st = doneState; doneDlg.close();
+  if (st && st.stage !== "done") toast("Your booking is not complete yet. Send the WhatsApp message to finish.", "Open WhatsApp", st.wa.app);
+  doneState = null;
+}
+$("#doneClose").addEventListener("click", closeDone);
+doneDlg.addEventListener("cancel", (e) => { e.preventDefault(); closeDone(); });
+/* Coming back from WhatsApp: ask if they pressed Send */
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && doneDlg.open && doneState && doneState.opened && doneState.stage === "start") setDoneStage("back");
+});
+$("#ctGo").addEventListener("click", async (e) => {
+  e.preventDefault();
+  const go = e.currentTarget;
+  if (go.getAttribute("aria-disabled") === "true" || go.dataset.busy) return;
+  const d = validateBk();
+  if (!d) return;
+  if (TURNSTILE_SITE_KEY && !tsToken) { const h = $("#ctHint"); h.hidden = false; h.textContent = "Please wait for the security check to finish, then tap Book again."; setupTurnstile(); return; }
+  go.dataset.busy = "1"; go.setAttribute("aria-disabled", "true");
+  const label = go.textContent; go.textContent = "Booking…";
+  const res = await submitBooking(d);
+  delete go.dataset.busy; go.textContent = label; go.removeAttribute("aria-disabled");
+  resetTurnstile();
+  if (!res || res.ok === false) {
+    const hint = $("#ctHint"); hint.hidden = false;
+    hint.textContent = res && res.closed ? dayMsg(0, true) : res && res.full ? dayMsg(+bk("bkDay").value, false) : (res && res.network ? "Could not reach the booking system. Check your internet and try again, or call the lab." : "Could not book right now" + (res && res.error ? " (" + String(res.error).slice(0, 60) + ")" : "") + ". Please try again or call the lab.");
+    refreshSlots();
+    return;
+  }
+  const o = +bk("bkDay").value, when = (o ? "tomorrow" : "today") + ", " + dayLabel(o);
+  const msg = cartMessage(res.bookingNo), wa = { app: waApp(msg), web: waLink(msg) };
+  cartDlg.close();
+  clearBkForm();
+  cart = []; offerNote = "";
+  saveCart(); renderCart(); bump();
+  showDone(res, wa, when);
 });
 ["#ctBrowse", "#ctMore"].forEach((q) => $(q).addEventListener("click", () => { cartDlg.close(); openCatalogue(); }));
 $("#cartBtn").addEventListener("click", () => openCart());
@@ -402,7 +787,7 @@ function openDetail(id) {
   $("#dTitle").textContent = t.name;
   const f = $("#dFacts");
   f.replaceChildren();
-  [["Category", t.cat], ["Price", rupee(t.price)]].forEach(([k, v]) => {
+  [["What it checks", t.desc], ["Sample", t.sample], ["Preparation", t.prep || "No special preparation is usually needed. Confirm with the lab."], ["Category", t.cat]].forEach(([k, v]) => {
     const d = h("div"); d.append(h("dt", "", k), h("dd", "", v)); f.append(d);
   });
   const da = $("#dAdd"); da.dataset.add = id; syncBtn(da);
@@ -421,28 +806,42 @@ POPULAR_TEST_IDS.forEach((id, i) => {
   meta.append(h("li", "", t.cat));
   const actions = h("div", "card-btns");
   actions.append(addBtn(id, "btn btn-p"));
-  c.append(h("span", "ico", t.catKey), (() => { const hh = h("h3"); hh.append(btn(t.name, "link-btn title-link", () => openDetail(id), "View details for " + t.name)); return hh; })(), meta, h("div", "price", rupee(t.price)), actions);
+  c.append(h("span", "ico", t.catKey), (() => { const hh = h("h3"); hh.append(btn(t.name, "link-btn title-link", () => openDetail(id), "View details for " + t.name)); return hh; })(), h("p", "card-desc", t.desc), meta, actions);
   $("#popularGrid").append(c);
 });
 
 PACKAGES.forEach((p, i) => {
+  if (!$("#pkgGrid")) return;
   const c = h("article", "card reveal offer-pack" + (p.badge ? " feature" : ""));
   c.style.setProperty("--i", i % 4);
   if (p.badge) c.append(h("span", "badge", p.badge));
   const top = h("div", "op-top");
-  top.append(h("span", "save-pill", "SAVE " + p.discount + "%"), h("span", "op-who", p.who || ""));
-  const price = h("div", "price", rupee(p.price));
-  price.append(h("s", "", rupee(p.orig)));
+  top.append(h("span", "op-who", p.who || ""));
   const det = h("details");
   det.append(h("summary", "", "See all " + p.tests.length + " tests"));
   const ul = h("ul");
   p.tests.forEach((n) => ul.append(h("li", "", n)));
   det.append(ul);
   c.append(top, h("h3", "", p.name), h("p", "", p.desc),
-    price, h("p", "op-save", "You save " + rupee(p.orig - p.price)), det,
+    det,
     (() => { const a = h("div", "card-btns"); a.append(addBtn(p.id, "btn btn-p")); return a; })());
   $("#pkgGrid").append(c);
 });
+
+/* Search: every word typed must appear in the test name, category or plain description,
+   so "sugar", "thyroid" or "fever" also find the right tests. Name matches come first. */
+function testRank(t, words) {
+  const name = t.name.toLowerCase(), all = (name + " " + t.cat + " " + t.desc).toLowerCase();
+  if (!words.every((w) => all.includes(w))) return -1;
+  if (name.startsWith(words[0])) return 0;
+  return words.every((w) => name.includes(w)) ? 1 : 2;
+}
+function searchTests(q) {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return TESTS.slice();
+  return TESTS.map((t) => [t, testRank(t, words)]).filter((x) => x[1] >= 0)
+    .sort((a, b) => a[1] - b[1] || a[0].name.localeCompare(b[0].name)).map((x) => x[0]);
+}
 
 /* Catalogue: category tiles, then a compact list. Search looks through every test. */
 const state = { cat: null, q: "", more: false };
@@ -451,7 +850,7 @@ Object.entries(CATS).forEach(([key, label]) => {
   const list = TESTS.filter((t) => t.catKey === key);
   const b = h("button", "tile");
   b.type = "button"; b.dataset.cat = key;
-  b.append(h("span", "ico", key), h("b", "", label), h("span", "tile-n", list.length + " tests · from " + rupee(Math.min(...list.map((t) => t.price)))));
+  b.append(h("span", "ico", key), h("b", "", label), h("span", "tile-n", list.length + " tests"));
   b.addEventListener("click", () => { setCat(key); $("#tests").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" }); });
   tilesEl.append(b);
 });
@@ -468,7 +867,7 @@ function renderCatalogue() {
   tilesEl.hidden = !!(q || state.cat);
   headEl.hidden = !(state.cat && !q);
   if (!tilesEl.hidden) { count.textContent = TESTS.length + " tests in " + Object.keys(CATS).length + " categories"; return; }
-  const list = TESTS.filter((t) => (q || !state.cat || t.catKey === state.cat) && (!q || (t.name + " " + t.cat).toLowerCase().includes(q)));
+  const list = (q ? searchTests(q) : TESTS).filter((t) => q || !state.cat || t.catKey === state.cat);
   if (!headEl.hidden) {
     headEl.append(btn("‹ All categories", "btn btn-o back-btn", () => setCat("all")), h("strong", "", CATS[state.cat]));
   }
@@ -482,8 +881,9 @@ function renderCatalogue() {
     const r = h("article", "row");
     const name = h("div", "name");
     name.append(btn(t.name, "link-btn", () => openDetail(t.id), "View details for " + t.name));
-    if (q) name.append(h("br"), h("span", "tag", t.cat));
-    r.append(name, h("b", "price rp", rupee(t.price)), addBtn(t.id, "btn btn-o rb"));
+    name.append(h("span", "row-desc", t.desc));
+    if (q) name.append(h("span", "tag", t.cat));
+    r.append(name, addBtn(t.id, "btn btn-o rb"));
     out.append(r);
   });
   if (!state.more && list.length > limit) {
@@ -499,7 +899,8 @@ function openCatalogue(term) {
 }
 $$('a[href="#tests"]').forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openCatalogue(); }));
 
-/* Hero search: live suggestions while typing, Enter goes to the catalogue */
+/* Hero search: tapping the box lists ALL tests (grouped by category). Typing narrows the list.
+   Tapping a test adds it straight to My Tests. */
 const heroQ = $("#heroQ"), suggest = $("#heroSuggest");
 let sugItems = [], sugActive = -1;
 function hideSuggest() {
@@ -514,54 +915,58 @@ function setActive(i) {
   if (i >= 0) { heroQ.setAttribute("aria-activedescendant", lis[i].id); lis[i].scrollIntoView({ block: "nearest" }); }
   else heroQ.removeAttribute("aria-activedescendant");
 }
-function pickSuggestion(t) {
-  heroQ.value = t.name;
-  hideSuggest();
-  openCatalogue(t.name);
-}
+function addFromSearch(t, btnEl) { onAddTap(t.id, btnEl); }
 function renderSuggest() {
-  const q = heroQ.value.trim().toLowerCase();
+  const q = heroQ.value.trim();
   suggest.replaceChildren();
   sugActive = -1;
-  if (!q) { hideSuggest(); return; }
-  sugItems = TESTS.filter((t) => (t.name + " " + t.cat).toLowerCase().includes(q))
-    .sort((a, b) => (b.name.toLowerCase().startsWith(q) - a.name.toLowerCase().startsWith(q)) || a.name.localeCompare(b.name))
-    .slice(0, 8);
-  if (!sugItems.length) {
-    suggest.append(h("li", "sg-none", "No matching tests. Press Enter to browse the full catalogue."));
-  }
+  sugItems = searchTests(q);
+  suggest.append(h("li", "sg-head", q
+    ? sugItems.length + (sugItems.length === 1 ? " test found. Tap it to add." : " tests found. Tap a test to add it.")
+    : "All " + TESTS.length + " tests. Tap a test to add it to My Tests."));
+  if (!sugItems.length) suggest.append(h("li", "sg-none", "No test matches. Try a shorter word, or tap Browse."));
+  let lastCat = "";
   sugItems.forEach((t, i) => {
+    if (!q && t.cat !== lastCat) { lastCat = t.cat; suggest.append(h("li", "sg-grp", t.cat)); }
     const li = h("li", "sg-item");
     li.id = "sg-" + i;
     li.setAttribute("role", "option");
     li.setAttribute("aria-selected", "false");
-    const label = h("span", "sg-name");
-    const at = t.name.toLowerCase().indexOf(q);
-    if (at >= 0) label.append(t.name.slice(0, at), h("mark", "", t.name.slice(at, at + q.length)), t.name.slice(at + q.length));
+    const main = h("span", "sg-main"), label = h("span", "sg-name");
+    const lq = q.toLowerCase(), at = lq ? t.name.toLowerCase().indexOf(lq) : -1;
+    if (at >= 0) label.append(t.name.slice(0, at), h("mark", "", t.name.slice(at, at + lq.length)), t.name.slice(at + lq.length));
     else label.textContent = t.name;
-    li.append(label, h("span", "sg-cat", t.cat), h("b", "sg-price", rupee(t.price)));
+    main.append(label, h("span", "sg-desc", t.desc));
+    const add = addBtn(t.id, "sg-add rb");
+    add.tabIndex = -1;
+    li.append(main, h("span", "sg-cat", q ? t.cat : ""), add);
     li.addEventListener("mousedown", (e) => e.preventDefault());
-    li.addEventListener("click", () => pickSuggestion(t));
+    li.addEventListener("click", (e) => { if (!e.target.closest("button")) addFromSearch(t, add); });
+    add.addEventListener("mousedown", (e) => e.preventDefault());
     suggest.append(li);
   });
   suggest.hidden = false;
+  suggest.scrollTop = 0;
   heroQ.setAttribute("aria-expanded", "true");
 }
 heroQ.addEventListener("input", renderSuggest);
-heroQ.addEventListener("focus", () => { if (heroQ.value.trim()) renderSuggest(); });
+heroQ.addEventListener("focus", renderSuggest);
+heroQ.addEventListener("click", () => { if (suggest.hidden) renderSuggest(); });
 heroQ.addEventListener("keydown", (e) => {
   const open = !suggest.hidden && sugItems.length;
-  if (e.key === "ArrowDown" && open) { e.preventDefault(); setActive((sugActive + 1) % sugItems.length); }
+  if (e.key === "ArrowDown") { e.preventDefault(); if (suggest.hidden) renderSuggest(); else if (open) setActive((sugActive + 1) % sugItems.length); }
   else if (e.key === "ArrowUp" && open) { e.preventDefault(); setActive((sugActive - 1 + sugItems.length) % sugItems.length); }
+  else if (e.key === "Tab") hideSuggest();
   else if (e.key === "Escape" && !suggest.hidden) { e.stopPropagation(); hideSuggest(); }
 });
-document.addEventListener("click", (e) => { if (!e.target.closest("#heroSearch")) hideSuggest(); });
+document.addEventListener("click", (e) => { if (!e.target.closest("#heroSearch") && !e.target.closest(".hero-chips")) hideSuggest(); });
 $("#heroSearch").addEventListener("submit", (e) => {
   e.preventDefault();
-  if (sugActive >= 0 && sugItems[sugActive]) { pickSuggestion(sugItems[sugActive]); return; }
+  if (sugActive >= 0 && sugItems[sugActive]) { addFromSearch(sugItems[sugActive], $("#sg-" + sugActive + " button")); return; }
   hideSuggest();
   openCatalogue(heroQ.value);
 });
+$$(".hero-chips button").forEach((b) => b.addEventListener("click", () => { heroQ.value = b.dataset.q; heroQ.focus(); renderSuggest(); }));
 
 /* Popular tests slider: arrows scroll one card at a time */
 (function popularSlider() {
@@ -579,46 +984,82 @@ $("#heroSearch").addEventListener("submit", (e) => {
     if (e.key === "ArrowLeft") { e.preventDefault(); prev.click(); }
   });
   window.addEventListener("resize", sync);
+
+  /* Auto-scroll: drifts left, pauses on hover, focus or touch, loops back to the start */
+  if (!reduceMotion) {
+    let pos = 0, paused = false, resumeT = 0, wait = 0, last = 0, vis = true;
+    const SPEED = 40; // pixels per second
+    const hold = (on) => { paused = on; track.style.scrollSnapType = on ? "" : "none"; if (on) pos = track.scrollLeft; };
+    const pause = () => { clearTimeout(resumeT); hold(true); };
+    const resume = (d) => { clearTimeout(resumeT); resumeT = setTimeout(() => hold(false), d || 0); };
+    track.addEventListener("mouseenter", pause);
+    track.addEventListener("mouseleave", () => resume(300));
+    track.addEventListener("focusin", pause);
+    track.addEventListener("focusout", () => resume(300));
+    track.addEventListener("touchstart", pause, { passive: true });
+    track.addEventListener("touchend", () => resume(3000), { passive: true });
+    [prev, next].forEach((b) => { b.addEventListener("mouseenter", pause); b.addEventListener("mouseleave", () => resume(300)); b.addEventListener("click", () => { pause(); resume(3500); }); });
+    track.addEventListener("scroll", () => { if (paused) pos = track.scrollLeft; }, { passive: true });
+    new IntersectionObserver((e) => { vis = e[0].isIntersecting; }, { threshold: 0.1 }).observe(track);
+    const tick = (t) => {
+      const dt = Math.min(64, t - (last || t)); last = t;
+      if (!paused && vis && !document.hidden) {
+        const max = track.scrollWidth - track.clientWidth;
+        if (wait > 0) { wait -= dt; if (wait <= 0) { pos = 0; track.scrollLeft = 0; wait = 0; } }
+        else if (pos >= max - 1) { wait = 1200; }
+        else { pos = Math.min(max, pos + SPEED * dt / 1000); track.scrollLeft = pos; }
+      }
+      requestAnimationFrame(tick);
+    };
+    hold(false);
+    requestAnimationFrame(tick);
+  }
   sync();
 })();
 
 /* =====================================================================
-   REVIEWS CAROUSEL AND FAQ
+   FAQ
    ===================================================================== */
-REVIEWS.forEach((t, i) => {
-  const c = h("article", "card review");
-  c.append(h("span", "stars", "★★★★★"), h("q", "", t.t), h("small", "", t.w));
-  $("#carTrack").append(c);
-});
-const step = () => $("#carTrack").clientWidth * 0.8;
-$("#carPrev").addEventListener("click", () => $("#carTrack").scrollBy({ left: -step(), behavior: reduceMotion ? "auto" : "smooth" }));
-$("#carNext").addEventListener("click", () => $("#carTrack").scrollBy({ left: step(), behavior: reduceMotion ? "auto" : "smooth" }));
-$("#carTrack").addEventListener("keydown", (e) => {
-  if (e.key === "ArrowRight") { e.preventDefault(); $("#carNext").click(); }
-  if (e.key === "ArrowLeft") { e.preventDefault(); $("#carPrev").click(); }
-});
 
-FAQS.forEach(([q, a], i) => {
-  const item = h("div", "faq-item");
-  const trig = h("button", "faq-q", q);
-  trig.type = "button";
-  trig.id = "faq-q" + i;
-  trig.setAttribute("aria-expanded", "false");
-  trig.setAttribute("aria-controls", "faq-p" + i);
-  const panel = h("div", "faq-p");
-  panel.id = "faq-p" + i;
-  panel.setAttribute("role", "region");
-  panel.setAttribute("aria-labelledby", trig.id);
-  const inner = h("div"); inner.append(h("p", "", a)); panel.append(inner);
-  trig.addEventListener("click", () => {
-    const open = trig.getAttribute("aria-expanded") === "true";
-    trig.setAttribute("aria-expanded", String(!open));
-    panel.classList.toggle("open", !open);
+(function faqTabs() {
+  const tabs = $("#faqTabs"), list = $("#faqList");
+  let current = 0;
+  function renderList() {
+    list.replaceChildren();
+    list.setAttribute("aria-labelledby", "faq-tab" + current);
+    FAQ_GROUPS[current].items.forEach(([q, a], i) => {
+      const item = h("div", "faq-item"), hd = h("h3");
+      const trig = h("button", "faq-q", q);
+      trig.type = "button"; trig.id = "faq-q" + i;
+      trig.setAttribute("aria-expanded", "false"); trig.setAttribute("aria-controls", "faq-p" + i);
+      const panel = h("div", "faq-p"), inner = h("div");
+      panel.id = "faq-p" + i; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", trig.id);
+      inner.append(h("p", "", a)); panel.append(inner);
+      trig.addEventListener("click", () => {
+        const open = trig.getAttribute("aria-expanded") === "true";
+        trig.setAttribute("aria-expanded", String(!open)); panel.classList.toggle("open", !open);
+      });
+      hd.append(trig); item.append(hd, panel); list.append(item);
+    });
+  }
+  function select(i, focus) {
+    current = i;
+    $$("button", tabs).forEach((b, n) => { b.setAttribute("aria-selected", String(n === i)); b.tabIndex = n === i ? 0 : -1; b.classList.toggle("on", n === i); });
+    renderList();
+    if (focus) $$("button", tabs)[i].focus();
+  }
+  FAQ_GROUPS.forEach((g, i) => {
+    const b = h("button", "faq-tab", g.label);
+    b.type = "button"; b.id = "faq-tab" + i; b.setAttribute("role", "tab"); b.setAttribute("aria-controls", "faqList");
+    b.addEventListener("click", () => select(i));
+    b.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") { e.preventDefault(); select((i + 1) % FAQ_GROUPS.length, true); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); select((i - 1 + FAQ_GROUPS.length) % FAQ_GROUPS.length, true); }
+    });
+    tabs.append(b);
   });
-  item.append(h("h3", "", ""), panel);
-  item.firstChild.append(trig);
-  $("#faqList").append(item);
-});
+  select(0);
+})();
 
 /* =====================================================================
    FEEDBACK FORM: emails the message to the lab inbox (via FormSubmit)
@@ -628,6 +1069,7 @@ const FEEDBACK_EMAIL = "shivasatvikadiagnostics@gmail.com";
   const f = $("#feedbackForm");
   if (!f) return;
   const name = $("#fbName"), msg = $("#fbMsg"), status = $("#fbStatus"), sendBtn = $("#fbSend");
+  let lastFb = 0;
   const setErr = (id, text, el) => { $("#e-" + id).textContent = text; el.setAttribute("aria-invalid", text ? "true" : "false"); };
   f.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -637,15 +1079,18 @@ const FEEDBACK_EMAIL = "shivasatvikadiagnostics@gmail.com";
     if (msg.value.trim().length < 3) { setErr("fbmsg", "Please write your message.", msg); bad = bad || msg; }
     if (bad) { bad.focus(); return; }
     if ($("#fbHoney").value) return;   // spam trap
+    if (Date.now() - lastFb < 30000) { status.textContent = "Please wait a few seconds before sending again."; return; }
+    lastFb = Date.now();
+    const fbName = clean(name.value, 60), fbMsg = cleanLines(msg.value, 1000);
     sendBtn.disabled = true; sendBtn.textContent = "Sending…";
     try {
       const res = await fetch("https://formsubmit.co/ajax/" + FEEDBACK_EMAIL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
-          name: name.value.trim(),
-          message: msg.value.trim(),
-          _subject: "New feedback from " + name.value.trim() + " (website)",
+          name: fbName,
+          message: fbMsg,
+          _subject: "New feedback from " + fbName + " (website)",
           _template: "table",
           _captcha: "false"
         })
@@ -656,9 +1101,9 @@ const FEEDBACK_EMAIL = "shivasatvikadiagnostics@gmail.com";
       status.textContent = "Thank you! Your feedback has been sent.";
     } catch (err) {
       // fallback: open the visitor's own email app with the message ready
-      const body = "Name: " + name.value.trim() + "\n\n" + msg.value.trim();
+      const body = "Name: " + fbName + "\n\n" + fbMsg;
       status.textContent = "Could not send directly, opening your email app instead.";
-      window.location.href = "mailto:" + FEEDBACK_EMAIL + "?subject=" + encodeURIComponent("Website feedback from " + name.value.trim()) + "&body=" + encodeURIComponent(body);
+      window.location.href = "mailto:" + FEEDBACK_EMAIL + "?subject=" + encodeURIComponent("Website feedback from " + fbName) + "&body=" + encodeURIComponent(body);
     } finally {
       sendBtn.disabled = false; sendBtn.textContent = "Send Feedback";
     }
@@ -715,7 +1160,7 @@ if ("IntersectionObserver" in window) {
   const spy = new IntersectionObserver((entries) => entries.forEach((en) => {
     if (en.isIntersecting) links.forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + en.target.id));
   }), { rootMargin: "-45% 0px -50% 0px" });
-  ["home", "tests", "offers", "why", "contact"].forEach((id) => spy.observe($("#" + id)));
+  ["home", "tests", "why", "contact"].forEach((id) => { const el = $("#" + id); if (el) spy.observe(el); });
 }
 
 // Reveal (staggered via --i) and count-up
@@ -753,6 +1198,11 @@ if ("IntersectionObserver" in window && !reduceMotion) {
   $$("[data-count]").forEach(countUp);
 }
 
+$$(".fb-photo img").forEach((img) => {
+  const gone = () => img.remove();
+  if (img.complete && img.naturalWidth === 0) gone();
+  img.addEventListener("error", gone);
+});
 /* Hide a photo slot whose file is missing so the instrument art shows through */
 $$(".photo img").forEach((img) => {
   const miss = () => img.parentElement.classList.add("nophoto");
@@ -857,14 +1307,15 @@ renderCatalogue();
   const hero = document.getElementById("home");
   const tk = document.getElementById("heroTicks");
   if (!hero || !tk) return;
-  for (let i = 0; i < 30; i++) { const s = document.createElement("i"); s.style.setProperty("--i", i); if ((i + 1) % 10 === 0) s.className = "big"; tk.append(s); }
+  const span = Math.max(30, new Date().getFullYear() - SINCE_YEAR);
+  for (let i = 0; i < span; i++) { const s = document.createElement("i"); s.style.setProperty("--i", i); if ((i + 1) % 10 === 0) s.className = "big"; tk.append(s); }
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const num = hero.querySelector(".hy-num b");
   const count = () => {
     const t0 = performance.now();
     (function tick(now) {
       const p = Math.min((now - t0) / 1200, 1);
-      num.textContent = Math.round(30 * (1 - Math.pow(1 - p, 3))) + "+";
+      num.textContent = String(Math.round(1900 + (SINCE_YEAR - 1900) * (1 - Math.pow(1 - p, 3))));
       if (p < 1) requestAnimationFrame(tick);
     })(t0);
   };
@@ -888,4 +1339,101 @@ renderCatalogue();
     if (en.isIntersecting) tabs.forEach((a) => a.classList.toggle("on", a.dataset.sec === en.target.id));
   }), { rootMargin: "-45% 0px -50% 0px" });
   tabs.forEach((a) => { const el = document.getElementById(a.dataset.sec); if (el) io.observe(el); });
+})();
+
+
+/* ===== How-to-book popup ===== */
+(function howTo() {
+  const dlg = $("#howDialog");
+  $("#howFab").addEventListener("click", () => dlg.showModal());
+  $("#howClose").addEventListener("click", () => dlg.close());
+  $("#howGo").addEventListener("click", () => { dlg.close(); openCatalogue(); });
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+})();
+
+/* =====================================================================
+   FIRST-VISIT BOOKING GUIDE
+   Shown once, only to a new visitor: no earlier visit remembered on this
+   device and nothing already in My Tests. Skip, Done, Esc, or adding a
+   test yourself all mark it as seen, so it never returns.
+   Test it again any time by opening the site with ?guide=1 at the end of
+   the address.
+   ===================================================================== */
+(function bookingGuide() {
+  const KEY = "ssdl_guide_seen";
+  const forced = /[?&]guide=1(&|$)/.test(location.search);
+  let seen = false;
+  try { seen = !!localStorage.getItem(KEY); } catch (e) { return; }   // no storage: stay quiet rather than nag every visit
+  if (!forced && (seen || cart.length)) return;
+
+  const mobile = matchMedia("(max-width:768px)");
+  const visible = (q) => { const e = $(q); return e && e.getBoundingClientRect().width > 0 ? e : null; };
+  const STEPS = [
+    { t: "1. Pick your test", p: "Type the test name here. Then tap + to add it.",
+      target: () => visible("#heroSearch") },
+    { t: "2. Open My Tests", p: "Tap here to see the tests you picked.",
+      target: () => visible(".tabbar .tb-book") || visible("#cartBtn"), near: true },
+    { t: "3. Book your slot", p: "Pick today or tomorrow, fill your details and tap Book. WhatsApp opens. Press Send to finish.",
+      target: () => null }
+  ];
+
+  let i = 0, card = null, hl = null, timer = null;
+  const markSeen = () => { try { localStorage.setItem(KEY, "1"); } catch (e) {} };
+  function clearHl() { if (hl) hl.classList.remove("tip-hl"); hl = null; }
+  function close() {
+    markSeen(); clearHl(); clearTimeout(timer);
+    document.removeEventListener("keydown", onKey);
+    document.removeEventListener("ssdl:added", close);
+    if (!card) return;
+    card.classList.remove("show");
+    const c = card; card = null;
+    setTimeout(() => c.remove(), 350);
+  }
+  function onKey(e) { if (e.key === "Escape" && !document.querySelector("dialog[open]")) close(); }
+
+  function render() {
+    const s = STEPS[i], last = i === STEPS.length - 1;
+    clearHl();
+    card.replaceChildren();
+    const dots = h("div", "tip-dots");
+    dots.setAttribute("aria-hidden", "true");
+    STEPS.forEach((_, k) => dots.append(h("i", k === i ? "on" : "")));
+    const row = h("div", "tip-row");
+    row.append(
+      btn("Skip", "link-btn tip-skip", close),
+      btn(last ? "Done" : "Next", "btn btn-p tip-next", () => { if (last) close(); else { i++; render(); } })
+    );
+    card.append(dots, h("h3", "", s.t), h("p", "", s.p), row);
+    card.setAttribute("aria-label", "How to book, step " + (i + 1) + " of " + STEPS.length);
+
+    // reset placement, then point at the real button
+    card.style.top = card.style.right = "";
+    const el = s.target();
+    if (el) {
+      hl = el; el.classList.add("tip-hl");
+      if (!mobile.matches && s.near) {
+        const r = el.getBoundingClientRect();
+        card.style.top = Math.round(r.bottom + 14) + "px";
+        card.style.right = Math.max(12, Math.round(innerWidth - r.right)) + "px";
+        card.style.bottom = "auto"; card.style.left = "auto";
+      } else { card.style.bottom = card.style.left = ""; }
+      const r2 = el.getBoundingClientRect();
+      if (r2.top < 70 && !s.near || r2.bottom > innerHeight - 90 && !s.near) el.scrollIntoView({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+    } else { card.style.bottom = card.style.left = ""; }
+    card.querySelector(".tip-next").focus({ preventScroll: true });
+  }
+
+  function show() {
+    if (document.querySelector("dialog[open]")) return;   // never interrupt a dialog; they will see it next visit
+    card = h("section", "tip");
+    card.setAttribute("role", "region");
+    card.setAttribute("aria-live", "polite");
+    document.body.append(card);
+    render();
+    requestAnimationFrame(() => card && card.classList.add("show"));
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("ssdl:added", close);       // they worked it out themselves
+  }
+
+  timer = setTimeout(show, forced ? 600 : 3500);
 })();
