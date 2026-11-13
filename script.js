@@ -1,5 +1,8 @@
 "use strict";
 
+/* Clickjacking guard: a meta CSP cannot stop framing, so a framed copy of the site hides itself */
+try { if (window.top !== window.self) { document.documentElement.style.display = "none"; window.top.location = window.self.location; } } catch (e) { document.documentElement.style.display = "none"; }
+
 /* Old iPhones (before iOS 15.4) have no <dialog>.showModal(): add a simple fallback so booking still works */
 (function dialogFallback() {
   if (typeof HTMLDialogElement === "function" && HTMLDialogElement.prototype.showModal) return;
@@ -262,14 +265,13 @@ function toast(msg, linkText, href) {
   if (linkText) { const a = h("a", "", linkText); a.href = href; t.append(a); }
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), linkText ? 6000 : 4000);
+  toastTimer = setTimeout(() => { t.classList.remove("show"); setTimeout(() => { if (!t.classList.contains("show")) t.textContent = ""; }, 500); }, linkText ? 6000 : 4000);   // links (may hold booking details) are removed once hidden
 }
 
 /* =====================================================================
    STATIC BINDINGS
    ===================================================================== */
 $("#year").textContent = new Date().getFullYear();
-$("#statTests").dataset.count = TESTS.length;
 $$("[data-phone]").forEach((a) => {
   if (phoneOk) { a.href = "tel:" + phoneDigits; a.textContent = "Call"; }
   else { a.textContent = "Phone to be added"; a.removeAttribute("href"); }
@@ -306,19 +308,111 @@ const MARQUEE = [
    ===================================================================== */
 const CART_KEY = "ssdl_my_tests";
 let cart = [];   // [{ id, n }]
-try {
-  cart = JSON.parse(localStorage.getItem(CART_KEY) || "[]")
-    .map((x) => (typeof x === "string" ? { id: x, n: 1 } : x))
-    .filter((x) => x && getItem(x.id))
-    .map((x) => ({ id: x.id, n: Math.min(9, Math.max(1, x.n | 0 || 1)) }));
-} catch (e) { cart = []; }
-let offerNote = "", flash = null;
+const CART_TTL = 6 * 3600 * 1000;   // a forgotten list is wiped after 6 hours
+function loadCart() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CART_KEY) || "null");
+    if (!raw || Array.isArray(raw) || !raw.t || Date.now() - raw.t > CART_TTL || !Array.isArray(raw.items)) { localStorage.removeItem(CART_KEY); return []; }
+    return raw.items
+      .filter((x) => x && typeof x.id === "string" && getItem(x.id))
+      .map((x) => ({ id: x.id, n: Math.min(9, Math.max(1, x.n | 0 || 1)) }));
+  } catch (e) { return []; }
+}
+cart = loadCart();
+let offerNote = "", flash = null, undoCart = null;
 const cartDlg = $("#cartDialog"), askDlg = $("#askDialog");
 const find = (id) => cart.find((x) => x.id === id);
 const qtyOf = (id) => (find(id) ? find(id).n : 0);
 const cartCount = () => cart.reduce((sum, x) => sum + x.n, 0);
 const cartLines = () => cart.map((x, i) => { const it = getItem(x.id); return (i + 1) + ". " + it.name + (it.testIds ? " (checkup, " + it.tests.length + " tests)" : "") + (x.n > 1 ? " x" + x.n : ""); });
-const saveCart = () => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} };
+const saveCart = () => { try { if (cart.length) localStorage.setItem(CART_KEY, JSON.stringify({ t: Date.now(), items: cart })); else localStorage.removeItem(CART_KEY); } catch (e) {} };
+
+/* ---- Live test tube: fills as tests are added. Blood = red, urine = yellow, both together = mixed orange ---- */
+const TUBE_COL = { red: [211, 32, 46], orange: [240, 130, 24], yellow: [247, 203, 42], clear: [143, 211, 198] };
+const rgbCss = (c) => "rgb(" + c.map((v) => Math.round(v)).join(",") + ")";
+const lerpCol = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+function sampleKind(t) { const s = String((t && t.sample) || "").toLowerCase(); return /blood|serum|plasma/.test(s) ? "b" : /urine/.test(s) ? "u" : "o"; }
+function kindWeights(id) {
+  const it = getItem(id), w = { b: 0, u: 0, o: 0 };
+  if (!it) return w;
+  const ts = (it.testIds || [it.id]).map((i) => TEST_MAP.get(i)).filter(Boolean);
+  ts.forEach((t) => { w[sampleKind(t)] += 1 / ts.length; });
+  return w;
+}
+function liquidColour(w) {
+  if (w.b > 0 && w.u > 0) { const r = 0.25 + 0.5 * (w.u / (w.b + w.u)); return r <= 0.5 ? lerpCol(TUBE_COL.red, TUBE_COL.orange, r / 0.5) : lerpCol(TUBE_COL.orange, TUBE_COL.yellow, (r - 0.5) / 0.5); }
+  return w.b > 0 ? TUBE_COL.red : w.u > 0 ? TUBE_COL.yellow : TUBE_COL.clear;
+}
+const itemColour = (id) => liquidColour(kindWeights(id));
+const TUBE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" class="tube" viewBox="0 0 48 120" aria-hidden="true" focusable="false">' +
+  '<path d="M10 20V92a14 14 0 0 0 28 0V20z" fill="url(#gl-glass)"/>' +
+  '<g clip-path="url(#gl-tclip)"><g class="tb-liq" style="transform:translateY(80px)">' +
+  '<rect class="tb-base" x="8" y="26" width="32" height="90" fill="rgb(143,211,198)"/>' +
+  '<rect class="tb-layer" x="8" y="26" width="32" height="0" opacity="0"/>' +
+  '<g class="tb-swirl" opacity="0"><path d="M0 40q7-6 14 0t14 0t14 0t14 0t14 0" fill="none" stroke="#D3202E" stroke-width="4" stroke-linecap="round"/><path d="M0 56q7 6 14 0t14 0t14 0t14 0t14 0" fill="none" stroke="#F7CB2A" stroke-width="4" stroke-linecap="round"/><path d="M0 72q7-6 14 0t14 0t14 0t14 0t14 0" fill="none" stroke="#D3202E" stroke-width="3.5" stroke-linecap="round"/></g>' +
+  '<rect x="8" y="26" width="32" height="90" fill="url(#gl-tshade)"/>' +
+  '<ellipse class="tb-men" cx="24" cy="26.500" rx="14" ry="2.800" fill="#fff" opacity=".4"/>' +
+  '<g class="tb-bubs" opacity="0"><circle cx="18" cy="96" r="2" fill="#fff" opacity=".7"/><circle cx="28" cy="88" r="1.500" fill="#fff" opacity=".7"/><circle cx="22" cy="80" r="1.200" fill="#fff" opacity=".7"/></g>' +
+  '</g></g>' +
+  '<path d="M10 20V92a14 14 0 0 0 28 0V20" fill="none" stroke="#6E9CB0" stroke-width="1.600" stroke-linecap="round"/>' +
+  '<path d="M14 28v58" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".85"/><path d="M34 34v40" stroke="#fff" stroke-width="1.400" stroke-linecap="round" opacity=".45"/>' +
+  '<path d="M36 40h-4M36 54h-3M36 68h-4M36 82h-3" stroke="#4F6B77" stroke-width="1.100" stroke-linecap="round" opacity=".7"/>' +
+  '<rect x="8" y="17" width="32" height="6" rx="2.500" fill="#B9C6CD" stroke="#6E9CB0" stroke-width=".8"/>' +
+  '<path d="M6 12a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="url(#gl-purple)" stroke="#33195F" stroke-width=".9"/>' +
+  '<path d="M10 12h28" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".45"/></svg>';
+const tubes = [];
+let tubeSt = { level: 0, mixed: false, col: TUBE_COL.clear, init: false }, lastAdd = null, holdTube = false;
+function buildTubes() {
+  $$("[data-tube]").forEach((host) => {
+    if (host.firstChild) return;
+    const svg = document.importNode(new DOMParser().parseFromString(TUBE_SVG, "image/svg+xml").documentElement, true);
+    host.append(svg);
+    tubes.push({ svg, liq: $(".tb-liq", svg), base: $(".tb-base", svg), layer: $(".tb-layer", svg), swirl: $(".tb-swirl", svg), men: $(".tb-men", svg), bubs: $(".tb-bubs", svg), tm: 0 });
+  });
+}
+function paintTube(T, level, col, o) {
+  clearTimeout(T.tm);
+  const still = reduceMotion || o.instant;
+  T.liq.style.transition = still ? "none" : "transform .9s cubic-bezier(.22,1,.36,1)";
+  T.liq.style.transform = "translateY(" + (1 - level) * 80 + "px)";
+  const settle = () => {
+    T.base.style.transition = still ? "none" : "fill .9s ease"; T.base.style.fill = rgbCss(col);
+    T.layer.style.transition = "none"; T.layer.style.opacity = "0";
+  };
+  if (o.pour && !still) {
+    T.base.style.transition = "none"; T.base.style.fill = rgbCss(o.prevCol);
+    T.layer.setAttribute("height", String(Math.max(8, 80 * (level - o.from) + 4)));
+    T.layer.style.transition = "none"; T.layer.style.fill = rgbCss(o.addCol); T.layer.style.opacity = "1";
+    void T.base.getBoundingClientRect();
+    T.tm = setTimeout(() => {   // the new sample has settled on top: now they blend into a new colour
+      T.base.style.transition = "fill 1.4s ease"; T.base.style.fill = rgbCss(col);
+      T.layer.style.transition = "opacity 1.4s ease, fill 1.4s ease"; T.layer.style.fill = rgbCss(col); T.layer.style.opacity = "0";
+      if (T.swirl.animate) {
+        T.swirl.animate([{ opacity: 0 }, { opacity: 0.95, offset: 0.2 }, { opacity: 0.95, offset: 0.7 }, { opacity: 0 }], { duration: 1600 });
+        T.swirl.firstElementChild.animate([{ transform: "translateX(0)" }, { transform: "translateX(-14px)" }], { duration: 400, iterations: 4 });
+        T.swirl.children[1].animate([{ transform: "translateX(-14px)" }, { transform: "translateX(0)" }], { duration: 400, iterations: 4 });
+      }
+    }, 800);
+  } else settle();
+  if (!still && o.grew && T.bubs.animate) {
+    T.bubs.animate([{ opacity: 0, transform: "translateY(0)" }, { opacity: 1, offset: 0.2 }, { opacity: 0, transform: "translateY(-34px)" }], { duration: 1200, delay: 200 });
+    T.men.animate([{ transform: "scaleY(1)" }, { transform: "scaleY(1.9)", offset: 0.35 }, { transform: "scaleY(1)" }], { duration: 700, delay: 350 });
+  }
+}
+function syncTubes() {
+  if (holdTube) return;
+  const n = cartCount(), w = { b: 0, u: 0, o: 0 };
+  cart.forEach((x) => { const k = kindWeights(x.id); w.b += k.b * x.n; w.u += k.u * x.n; w.o += k.o * x.n; });
+  const level = n ? Math.min(1, n / 8) : 0, col = liquidColour(w), mixed = w.b > 0 && w.u > 0, prev = tubeSt;
+  const pour = prev.init && level > prev.level && mixed && !prev.mixed && prev.level > 0 && !!lastAdd;
+  tubes.forEach((T) => paintTube(T, level, col, { instant: !prev.init, pour, prevCol: prev.col, addCol: lastAdd || col, from: prev.level, grew: level > prev.level }));
+  tubeSt = { level, mixed, col, init: true }; lastAdd = null;
+  const box = $("#ctTubeBox"), note = $("#ctTubeN");
+  if (box) {
+    box.hidden = !cart.length;
+    note.textContent = mixed ? "Blood and urine samples, shown mixed in one tube." : w.b > 0 ? "Blood sample." + (w.o > 0 ? " Other samples are collected separately." : "") : w.u > 0 ? "Urine sample." + (w.o > 0 ? " Other samples are collected separately." : "") : "Sample is collected as described in each test.";
+  }
+}
 
 /* ---- Home collection form: landmarks (edit this list to match your area) ---- */
 /* Landmark (main locality) -> areas shown after it is chosen. Edit freely: add a landmark, or add/remove areas. */
@@ -358,7 +452,7 @@ const AREAS = [...new Set(Object.values(LANDMARK_AREAS).flat())].sort((x, y) => 
 /* ---- Google Sheets booking + 50 slots per day ----
    Paste the Web app URL of your Google Apps Script here (see SETUP-GOOGLE-SHEET.md).
    Leave empty to book on WhatsApp only (no slot counting). */
-const BOOKING_API_URL = "https://script.google.com/macros/s/AKfycbyArRagYPVRNRNUbmVuTA2_el85VX4Kls0mlhcTEVq_DnjAc4zrGL6EyCkr0jIYrrvmOg/exec";   // MUST look like https://script.google.com/macros/s/AKfy.../exec  (NOT a /macros/library/ link)
+const BOOKING_API_URL = "https://script.google.com/macros/s/AKfycbz9us05aWxg1QieVBxqqXz0CBqRgWan5sNNX9WAXndoeVRMmRltnhK6L3urqnQ6KCZ5-g/exec";   // MUST look like https://script.google.com/macros/s/AKfy.../exec  (NOT a /macros/library/ link)
 /* Spam protection (Cloudflare Turnstile, free). Paste your SITE key here to turn it on.
    Leave empty to keep it off. The SECRET key goes in Apps Script, never here (see SETUP-GOOGLE-SHEET.md). */
 const BOOKING_API = /^https:\/\/script\.google\.com\//.test(BOOKING_API_URL) ? BOOKING_API_URL : "";   // not set up yet = WhatsApp only, no errors shown
@@ -456,32 +550,39 @@ function buildDayOptions() {
   }
 }
 function setSlotStatus(t) { const e = $("#slotStatus"); if (e) { e.textContent = t; e.hidden = !t; } }
-let slotsBusy = false;
-async function refreshSlots() {
+let slotsBusy = false, slotsAt = 0;
+async function refreshSlots(force) {
   if (!BOOKING_API || slotsBusy) return;
+  if (!force && slots && Date.now() - slotsAt < 45000) return;   // fresh enough: open instantly
   if (!/^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[^/]+\/exec$/.test(BOOKING_API)) {
     setSlotStatus("Booking link is wrong. It must be the Web app URL ending with /exec."); return;
   }
   slotsBusy = true; setSlotStatus("Checking slots…");
   let got = null, why = "";
-  for (let i = 0; i < 3 && !got; i++) {                       // Google can be slow to wake up: try up to 3 times
+  for (let i = 0; i < 2 && !got; i++) {                       // Google can be slow to wake up: try twice
     try {
-      const r = await fetchTimeout(BOOKING_API + (BOOKING_API.indexOf("?") > -1 ? "&" : "?") + "action=slots&t=" + Date.now(), {}, 15000);
+      const r = await fetchTimeout(BOOKING_API + (BOOKING_API.indexOf("?") > -1 ? "&" : "?") + "action=slots&t=" + Date.now(), {}, 8000);
       const j = await r.json();
       if (j && j.days) got = j; else why = j && j.error ? String(j.error).slice(0, 80) : "bad reply";
     } catch (e) { why = "no reply"; }
     if (!got && i < 2) await new Promise((res) => setTimeout(res, 800 * (i + 1)));
   }
   slotsBusy = false;
-  if (got) { slots = got; buildDayOptions(); renderCart(); setSlotStatus(""); }   // on failure the last known counts stay on screen
+  if (got) { slots = got; slotsAt = Date.now(); buildDayOptions(); renderCart(); setSlotStatus(""); }   // on failure the last known counts stay on screen
   else setSlotStatus("Could not check slots (" + why + "). Tap here to try again.");
+}
+function newReqId() {
+  const a = new Uint32Array(3);
+  (window.crypto || window.msCrypto).getRandomValues(a);
+  return [...a].map((n) => n.toString(36)).join("");
 }
 async function submitBooking(d) {
   if (!BOOKING_API) return { ok: true, offline: true };   // no sheet connected: WhatsApp only, no slot counting
-  const body = JSON.stringify({ ...d, day: +bk("bkDay").value, tests: cartLines().join("; "), hp: "", ts: tsToken });
+  // The same request id is sent on a retry, so the server can never save the same booking twice
+  const body = JSON.stringify({ ...d, day: +bk("bkDay").value, tests: cartLines().join("; "), hp: (bk("bkHp") ? bk("bkHp").value : ""), ts: tsToken, rid: newReqId(), ft: Date.now() - formOpenedAt });
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const r = await fetchTimeout(BOOKING_API, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body }, 12000);
+      const r = await fetchTimeout(BOOKING_API, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body }, attempt ? 15000 : 20000);
       const j = await r.json();
       if (j && typeof j.ok === "boolean") return j;
     } catch (e) {}
@@ -490,7 +591,7 @@ async function submitBooking(d) {
 }
 (function initBkForm() {
   buildDayOptions();
-  const ss = $("#slotStatus"); if (ss) { ss.addEventListener("click", () => refreshSlots()); }
+  const ss = $("#slotStatus"); if (ss) { ss.addEventListener("click", () => refreshSlots(true)); }
   const sel = bk("bkLandmark");
   sel.append(new Option("Select nearest landmark", ""));
   LANDMARKS.forEach((l) => sel.append(new Option(l, l)));
@@ -500,6 +601,7 @@ async function submitBooking(d) {
   buildAreaOptions();
   bk("bkDoctor").addEventListener("focus", (e) => { if (e.target.value === "Self") e.target.select(); });   // type to replace "Self"
   bk("bkDoctor").addEventListener("blur", (e) => { if (!e.target.value.trim()) e.target.value = "Self"; });
+  setTimeout(() => refreshSlots(true), 1200);   // warm up the booking server while the visitor browses, so booking later is fast
   try { localStorage.removeItem(DETAIL_KEY); } catch (e) {}   // privacy: patient details are never kept in the browser (also wipes data saved by older versions)
 })();
 ["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther", "bkRadius"].forEach((id) => {
@@ -558,7 +660,11 @@ function bump(t) {
   if (reduceMotion) return;
   [...$$(".cart-n"), t].filter(Boolean).forEach((e) => { e.classList.remove("bump"); void e.offsetWidth; e.classList.add("bump"); setTimeout(() => e.classList.remove("bump"), 520); });
 }
-function fly(src) {
+function holdTubeFor() {   // the tube starts filling when the flying drop lands
+  holdTube = true;
+  setTimeout(() => { holdTube = false; syncTubes(); }, reduceMotion ? 0 : 620);
+}
+function fly(src, col) {
   if (reduceMotion) return;
   const target = [".tabbar .tb-book i", "#cartBtn", "#waFab"].map((q) => $(q)).find((e) => e && e.getBoundingClientRect().width > 0);
   if (!target) return;
@@ -566,6 +672,7 @@ function fly(src) {
   const t = target.getBoundingClientRect();
   const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2, dx = t.left + t.width / 2 - x0, dy = t.top + t.height / 2 - y0;
   const dot = h("span", "fly", "+");
+  if (col) dot.style.background = rgbCss(col);
   dot.style.left = x0 - 16 + "px"; dot.style.top = y0 - 16 + "px";
   document.body.append(dot);
   dot.animate([
@@ -608,7 +715,8 @@ function onAddTap(id, src) {
 }
 function addItem(id, src) {
   cart.push({ id, n: 1 }); flash = { id, type: "add" };
-  saveCart(); renderCart(); fxAdd(); fly(src);
+  lastAdd = itemColour(id); holdTubeFor();
+  saveCart(); renderCart(); fxAdd(); fly(src, lastAdd);
   document.dispatchEvent(new Event("ssdl:added"));
   toast(getItem(id).name + " added to My Tests.", "View", "#cart");
 }
@@ -617,8 +725,9 @@ function changeQty(id, d, src) {
   if (x.n + d < 1) { removeItem(id); return; }
   if (x.n + d > 9) { toast("Maximum 9 of one test per booking."); return; }
   x.n += d; flash = { id, type: "qty" };
+  if (d > 0) { lastAdd = itemColour(id); holdTubeFor(); }
   saveCart(); renderCart();
-  if (d > 0) { fxAdd(); fly(src); } else bump();
+  if (d > 0) { fxAdd(); fly(src, lastAdd); } else bump();
   if (d > 0 && !src) bump();
 }
 function removeItem(id) {
@@ -640,6 +749,7 @@ function removeItem(id) {
 function renderCart() {
   const n = cartCount();
   $$(".cart-n").forEach((e) => { e.textContent = n; e.hidden = !n; });
+  syncTubes();
   $$("[data-add]").forEach(syncBtn);
   const list = $("#ctList");
   list.replaceChildren();
@@ -660,6 +770,10 @@ function renderCart() {
   const of = $("#ctOffer");
   of.hidden = !offerNote; of.textContent = offerNote ? "🏷 " + offerNote : "";
   $("#ctEmpty").hidden = cart.length > 0;
+  $("#ctMore").hidden = !cart.length; $("#ctAddNote").hidden = !cart.length; $("#ctNext").hidden = !cart.length;
+  $("#ctSumN").textContent = n + (n === 1 ? " test selected" : " tests selected");
+  $("#ctTab2").classList.toggle("off", !cart.length);
+  if (!cart.length && !$("#ctStep2").hidden) setStep(1);
   const go = $("#ctGo"), hint = $("#ctHint");
   if (cart.length && waOk && allFull()) {
     go.setAttribute("aria-disabled", "true"); hint.hidden = false;
@@ -671,7 +785,20 @@ function renderCart() {
   }
   flash = null;
 }
-function openCart() { renderCart(); setMenu(false); if (!cartDlg.open) cartDlg.showModal(); refreshSlots(); setupTurnstile(); }
+function setStep(n) {
+  if (n === 2 && !cart.length) n = 1;
+  $("#ctStep1").hidden = n !== 1; $("#ctStep2").hidden = n !== 2;
+  [1, 2].forEach((i) => { const t = $("#ctTab" + i); t.classList.toggle("on", i === n); t.setAttribute("aria-selected", String(i === n)); });
+  const body = $("#cartDialog .ct-body"); if (body) body.scrollTop = 0;
+}
+$$("#ctTabs [data-step]").forEach((t) => t.addEventListener("click", () => {
+  if (t.dataset.step === "2" && !cart.length) { toast("Add at least one test first."); return; }
+  setStep(+t.dataset.step);
+}));
+$("#ctNext").addEventListener("click", () => setStep(2));
+$("#ctEdit").addEventListener("click", () => setStep(1));
+let formOpenedAt = Date.now();   // sent with a booking so the server can tell a person from a script
+function openCart() { formOpenedAt = Date.now(); setStep(1); renderCart(); setMenu(false); if (!cartDlg.open) cartDlg.showModal(); refreshSlots(); setupTurnstile(); }
 $("#ctClose").addEventListener("click", () => cartDlg.close());
 $("#ctCancel").addEventListener("click", () => {
   const prev = cart.map((x) => ({ ...x })), prevNote = offerNote;
@@ -683,7 +810,6 @@ $("#ctCancel").addEventListener("click", () => {
     undoCart = () => { cart = prev; offerNote = prevNote; saveCart(); renderCart(); toast("My Tests restored."); };
   }
 });
-let undoCart = null;
 cartDlg.addEventListener("click", (e) => { if (e.target === cartDlg) cartDlg.close(); });
 /* After Book: WhatsApp must be SENT to finish. Three stages:
    start = "One last step", back = asked when the visitor returns from WhatsApp, done = "Booking placed". */
@@ -725,15 +851,27 @@ function showDone(res, wa, when) {
   setDoneStage("start");
   doneDlg.showModal();
   clearTimeout(doneTimer);
-  doneTimer = setTimeout(openWhatsApp, 2500);   // opens WhatsApp for them; the button is there if it does not
+  doneTimer = setTimeout(openWhatsApp, 1000);   // opens WhatsApp for them; the button is there if it does not
 }
 $("#doneWa").addEventListener("click", (e) => { e.preventDefault(); openWhatsApp(); });
 $("#doneWeb").addEventListener("click", () => { clearTimeout(doneTimer); if (doneState) doneState.opened = true; });
-$("#doneSent").addEventListener("click", () => { clearTimeout(doneTimer); setDoneStage("done"); });
+$("#doneSent").addEventListener("click", () => { clearTimeout(doneTimer); setDoneStage("done"); wipeDoneLinks(); if (doneState) doneState.wa = { app: "#", web: "#" }; });
+/* Wipes every trace of the booking: list, form, undo copy, links that hold the patient's details */
+function wipeBooking() {
+  cart = []; offerNote = ""; undoCart = null;
+  try { localStorage.removeItem(CART_KEY); localStorage.removeItem(DETAIL_KEY); } catch (e) {}
+  clearBkForm();
+  renderCart();
+}
+function wipeDoneLinks() {
+  const a = $("#doneWa"), w = $("#doneWeb");
+  if (a) a.setAttribute("href", "#"); if (w) w.setAttribute("href", "#");
+}
 function closeDone() {
   clearTimeout(doneTimer);
   const st = doneState; doneDlg.close();
   if (st && st.stage !== "done") toast("Your booking is not complete yet. Send the WhatsApp message to finish.", "Open WhatsApp", st.wa.app);
+  else wipeDoneLinks();   // booking finished: the WhatsApp text (name, phone, address) must not stay on the page
   doneState = null;
 }
 $("#doneClose").addEventListener("click", closeDone);
@@ -763,9 +901,8 @@ $("#ctGo").addEventListener("click", async (e) => {
   const o = +bk("bkDay").value, when = (o ? "tomorrow" : "today") + ", " + dayLabel(o);
   const msg = cartMessage(res.bookingNo), wa = { app: waApp(msg), web: waLink(msg) };
   cartDlg.close();
-  clearBkForm();
-  cart = []; offerNote = "";
-  saveCart(); renderCart(); bump();
+  wipeBooking(); bump();
+  slotsAt = 0; refreshSlots(true);   // the slot count has changed
   showDone(res, wa, when);
 });
 ["#ctBrowse", "#ctMore"].forEach((q) => $(q).addEventListener("click", () => { cartDlg.close(); openCatalogue(); }));
@@ -775,6 +912,7 @@ $("#toast").addEventListener("click", (e) => {
   if (e.target.closest('a[href="#undo"]')) { e.preventDefault(); if (undoCart) undoCart(); undoCart = null; }
 });
 $$('[data-action="book"]').forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openCart(); }));
+buildTubes();
 renderCart();
 
 /* =====================================================================
@@ -797,16 +935,40 @@ $("#dAdd").addEventListener("click", () => { $("#detail").close(); onAddTap(deta
 $("#dClose").addEventListener("click", () => $("#detail").close());
 $("#detail").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
+/* Popular cards: category colour + lab icon, sample / fasting chips, full-width Add button */
+const CAT_STYLE = {   // [main colour, dark colour, soft tint, icon]
+  H: ["#E8695A", "#B3261E", "#FDECE8", "tubes"], U: ["#E8C547", "#8A6A00", "#FFF6D6", "cup"],
+  S: ["#A1887F", "#6D4C41", "#F3ECE8", "cup"], B: ["#1F9D74", "#0F7A5C", "#E3F3EA", "pipette"],
+  L: ["#F59E0B", "#B45309", "#FEF3E0", "tubes"], V: ["#8BAA3E", "#4C6B14", "#EEF4DC", "centrifuge"],
+  O: ["#8B5CF6", "#6D28D9", "#F0EAFE", "microscope"], R: ["#3B82F6", "#1D4ED8", "#E6EFFE", "microscope"],
+  M: ["#14B8A6", "#0F766E", "#DDF5F1", "microscope"]
+};
+function labIcon(name) {
+  const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), use = document.createElementNS(NS, "use");
+  svg.setAttribute("viewBox", "0 0 120 120"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("focusable", "false");
+  use.setAttribute("href", "#i-" + name); svg.append(use);
+  return svg;
+}
 POPULAR_TEST_IDS.forEach((id, i) => {
   const t = TEST_MAP.get(id);
   if (!t) return;
-  const c = h("article", "card reveal");
+  const base = CAT_STYLE[t.catKey] || CAT_STYLE.B;
+  const st = ["#1F9D74", "#0F7A5C", "#E3F3EA", base[3]];   // same green on every popular card
+  const c = h("article", "card pop-card reveal");
   c.style.setProperty("--i", i % 5);
-  const meta = h("ul", "meta");
-  meta.append(h("li", "", t.cat));
-  const actions = h("div", "card-btns");
-  actions.append(addBtn(id, "btn btn-p"));
-  c.append(h("span", "ico", t.catKey), (() => { const hh = h("h3"); hh.append(btn(t.name, "link-btn title-link", () => openDetail(id), "View details for " + t.name)); return hh; })(), h("p", "card-desc", t.desc), meta, actions);
+  c.style.setProperty("--c1", st[0]); c.style.setProperty("--c2", st[1]); c.style.setProperty("--tint", st[2]);
+  const top = h("div", "pop-top"), ico = h("span", "pop-ico");
+  ico.append(labIcon(st[3]));
+  top.append(ico, h("span", "pop-flag", "★ Popular"));
+  const chips = h("ul", "pop-chips");
+  chips.append(h("li", "", t.sample === "Blood" ? "Blood sample" : t.sample));
+  if (/no fasting/i.test(t.prep)) chips.append(h("li", "", "No fasting"));
+  else if (/fast/i.test(t.prep)) chips.append(h("li", "fast", "Fasting needed"));
+  const hh = h("h3"); hh.append(btn(t.name, "link-btn title-link", () => openDetail(id), "View details for " + t.name));
+  const actions = h("div", "card-btns"); actions.append(addBtn(id, "btn btn-p"));
+  const body = h("div", "pop-body");
+  body.append(h("p", "pop-cat", t.cat), hh, h("p", "card-desc", t.desc), chips, actions);
+  c.append(top, body);
   $("#popularGrid").append(c);
 });
 
@@ -1129,6 +1291,19 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setMenu(
 
 // Scroll progress, back-to-top and hero parallax share one rAF-throttled handler
 const bar = $("#progress"), toTop = $("#toTop"), heroImg = $("#heroImg"), heroArt = $("#heroArt");
+/* Hero headline: the words appear one by one (the full text stays readable for screen readers) */
+(function heroWords() {
+  const hd = $(".hero h1");
+  if (!hd || reduceMotion) return;
+  const text = hd.textContent.trim();
+  hd.setAttribute("aria-label", text);
+  hd.textContent = "";
+  text.split(/\s+/).forEach((w, i) => {
+    const sp = h("span", "hw", w);
+    sp.style.setProperty("--w", i); sp.setAttribute("aria-hidden", "true");
+    hd.append(sp, document.createTextNode(" "));
+  });
+})();
 // Hero video: hide the SVG fallback once it plays; respect reduced motion
 (function heroVideo() {
   const v = heroImg, fig = v.closest(".hero-photo");
@@ -1136,7 +1311,7 @@ const bar = $("#progress"), toTop = $("#toTop"), heroImg = $("#heroImg"), heroAr
   ["playing", "timeupdate"].forEach((ev) => v.addEventListener(ev, on));
   on();
   if (reduceMotion) { v.removeAttribute("autoplay"); v.removeAttribute("loop"); v.pause(); }
-  else v.play?.().catch(() => {});
+  else { v.playbackRate = 0.8; v.play?.().catch(() => {}); }   // slightly slower video
   document.addEventListener("visibilitychange", () => { if (reduceMotion) return; document.hidden ? v.pause() : v.play?.().catch(() => {}); });
 })();
 let ticking = false;
@@ -1146,7 +1321,7 @@ function onScroll() {
   toTop.hidden = y < 700;
   if (!reduceMotion) {
     document.documentElement.style.setProperty("--sy", Math.min(y, 2500));
-    if (y < 900) { const t = "translateY(" + (y * 0.12) + "px)"; heroImg.style.transform = t; heroArt.style.transform = t; }
+    if (y < 900) { const t = "translateY(" + (y * 0.05) + "px)"; heroImg.style.transform = t; heroArt.style.transform = t; }
   }
   ticking = false;
 }
@@ -1187,15 +1362,8 @@ if ("IntersectionObserver" in window && !reduceMotion) {
     o.unobserve(en.target);
   }), { threshold: 0.12, rootMargin: "0px 0px -30px 0px" });
   $$(".reveal").forEach((el) => io.observe(el));
-  const so = new IntersectionObserver((entries, o) => entries.forEach((en) => {
-    if (!en.isIntersecting) return;
-    $$("[data-count]", en.target).forEach(countUp);
-    o.unobserve(en.target);
-  }), { threshold: 0.4 });
-  so.observe($(".stats"));
 } else {
   $$(".reveal").forEach((el) => el.classList.add("in"));
-  $$("[data-count]").forEach(countUp);
 }
 
 $$(".fb-photo img").forEach((img) => {
@@ -1301,30 +1469,22 @@ renderCatalogue();
   }
 })();
 
-/* Hero: every 5 seconds the full "30+ years" animation replaces the headline block, then it
-   switches back. The search box, buttons and trust line never change. */
+
+/* Hero: the "Since 1992" animation is always on. The ring draws and the year counts up once on load. */
 (() => {
   const hero = document.getElementById("home");
-  const tk = document.getElementById("heroTicks");
-  if (!hero || !tk) return;
-  const span = Math.max(30, new Date().getFullYear() - SINCE_YEAR);
-  for (let i = 0; i < span; i++) { const s = document.createElement("i"); s.style.setProperty("--i", i); if ((i + 1) % 10 === 0) s.className = "big"; tk.append(s); }
+  if (!hero) return;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const num = hero.querySelector(".hy-num b");
   const count = () => {
     const t0 = performance.now();
     (function tick(now) {
-      const p = Math.min((now - t0) / 1200, 1);
-      num.textContent = String(Math.round(1900 + (SINCE_YEAR - 1900) * (1 - Math.pow(1 - p, 3))));
+      const p = Math.min((now - t0) / 1600, 1);
+      if (num) num.textContent = String(Math.round(1900 + (SINCE_YEAR - 1900) * (1 - Math.pow(1 - p, 3))));
       if (p < 1) requestAnimationFrame(tick);
     })(t0);
   };
-  let timer = null;
-  const flip = () => { const on = hero.classList.toggle("yrs-on"); if (on) count(); };
-  const start = () => { if (!timer) timer = setInterval(flip, 5000); };
-  const stop = () => { clearInterval(timer); timer = null; };
-  start();
-  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
+  setTimeout(() => { hero.classList.add("yrs-on"); count(); }, 400);
 })();
 
 /* Mobile app layer: lock scroll behind the menu, highlight the active tab-bar item */
@@ -1437,3 +1597,9 @@ renderCatalogue();
 
   timer = setTimeout(show, forced ? 600 : 3500);
 })();
+
+/* Security: a list or form left in another tab, or restored by the Back button, is cleared */
+window.addEventListener("storage", (e) => { if (e.key === CART_KEY) { cart = loadCart(); renderCart(); } });
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) { cart = loadCart(); if (!cart.length) clearBkForm(); renderCart(); }
+});

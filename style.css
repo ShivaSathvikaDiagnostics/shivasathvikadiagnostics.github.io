@@ -1462,3 +1462,260 @@ html:has(dialog[open]){overflow:hidden}
 .foot-logo{background:transparent;padding:0}
 .bk-ico{background:transparent;padding:0}
 .brand-logo,.done-logo{background:transparent}
+
+/* ---- Realistic lab scene: motion follows real physics (gravity, spin-up, buoyancy, ripples) ---- */
+.hero-live{position:absolute;z-index:1;right:6%;top:50%;width:min(440px,38vw);transform:translateY(-50%);pointer-events:none;overflow:visible}
+.hl-glass{fill:rgba(255,255,255,.07);stroke:rgba(255,255,255,.55);stroke-width:2.5}
+.hl-shine{fill:rgba(255,255,255,.28)}
+.hl-drop,.hl-rip,.hl-sp,.hl-b,.hl-rotor{transform-box:fill-box;transform-origin:center}
+.hl-drop{fill:#B3261E;animation:hlDrop 6s infinite}
+@keyframes hlDrop{
+ 0%,6%{transform:translateY(0) scale(0);opacity:0;animation-timing-function:ease-out}
+ 22%{transform:translateY(0) scale(1,1.05);opacity:1;animation-timing-function:ease-in}
+ 26%{transform:translateY(2px) scale(.92,1.22);opacity:1;animation-timing-function:cubic-bezier(.55,0,1,.45)}
+ 46%{transform:translateY(172px) scale(.82,1.3);opacity:1}
+ 46.5%,100%{transform:translateY(172px) scale(0);opacity:0}}
+.hl-rip{fill:none;stroke:rgba(255,255,255,.8);stroke-width:2;opacity:0;animation:hlRip 6s infinite}
+.hl-rip.r2{animation-delay:.25s}
+@keyframes hlRip{0%,46%{transform:scale(.15);opacity:0}48%{opacity:.85}72%{transform:scale(1.15);opacity:0;animation-timing-function:ease-out}100%{transform:scale(1.15);opacity:0}}
+.hl-sp{fill:#B3261E;opacity:0;animation:hlSp 6s infinite}
+.hl-sp.s2{animation-name:hlSp2}
+@keyframes hlSp{0%,46%{transform:translate(0,0);opacity:0;animation-timing-function:cubic-bezier(.2,.8,.4,1)}48%{opacity:1}54%{transform:translate(-13px,-24px);opacity:1;animation-timing-function:cubic-bezier(.6,0,.9,.5)}62%,100%{transform:translate(-22px,2px);opacity:0}}
+@keyframes hlSp2{0%,46%{transform:translate(0,0);opacity:0;animation-timing-function:cubic-bezier(.2,.8,.4,1)}48%{opacity:1}55%{transform:translate(12px,-30px);opacity:1;animation-timing-function:cubic-bezier(.6,0,.9,.5)}63%,100%{transform:translate(21px,2px);opacity:0}}
+.hl-rotor{animation:hlSpin 14s infinite}
+@keyframes hlSpin{
+ 0%{transform:rotate(0);filter:blur(0);animation-timing-function:cubic-bezier(.45,0,.9,.6)}
+ 22%{transform:rotate(900deg);filter:blur(1.2px);animation-timing-function:linear}
+ 72%{transform:rotate(3600deg);filter:blur(1.2px);animation-timing-function:cubic-bezier(.2,.5,.5,1)}
+ 100%{transform:rotate(4500deg);filter:blur(0)}}
+.hl-b{fill:rgba(255,255,255,.55);opacity:0;animation:hlRise 5s cubic-bezier(.4,0,.9,.6) infinite}
+@keyframes hlRise{0%{transform:translate(0,0);opacity:0}12%{opacity:.8}30%{transform:translate(3px,-26px)}55%{transform:translate(-3px,-56px)}80%{transform:translate(3px,-86px);opacity:.7}100%{transform:translate(0,-104px);opacity:0}}
+@media(max-width:900px){.hero-live{right:50%;transform:translate(50%,-50%);width:min(320px,70vw);opacity:.45}}
+@media(prefers-reduced-motion:reduce){.hl-drop,.hl-rip,.hl-sp,.hl-b{display:none}.hl-rotor{animation:none}}
+
+
+/* =====================================================================
+   v11: Popular cards, phone alignment, floating buttons
+   ===================================================================== */
+
+/* ---- Popular tests: richer cards ---- */
+#popularGrid > .pop-card{padding:0;gap:0;border-radius:22px;border:1px solid var(--line);background:#fff;box-shadow:0 8px 24px rgba(14,58,49,.08);overflow:hidden}
+#popularGrid > .pop-card::before{height:4px;transform:scaleX(1);background:linear-gradient(90deg,var(--c1),var(--c2))}
+#popularGrid > .pop-card:hover{border-color:var(--c1);box-shadow:0 18px 40px rgba(14,58,49,.14)}
+.pop-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:24px 20px 16px;background:linear-gradient(160deg,var(--tint),#fff 85%)}
+.pop-ico{display:grid;place-items:center;width:64px;height:64px;border-radius:18px;background:#fff;box-shadow:0 6px 16px rgba(14,58,49,.12),inset 0 0 0 2px var(--tint);transition:transform .35s cubic-bezier(.22,1,.36,1)}
+.pop-ico svg{width:42px;height:42px}
+.pop-card:hover .pop-ico{transform:translateY(-3px) rotate(-6deg) scale(1.06)}
+.pop-flag{font-size:.72rem;font-weight:800;letter-spacing:.03em;padding:5px 11px;border-radius:99px;background:var(--navy);color:var(--gold);white-space:nowrap}
+.pop-body{display:flex;flex-direction:column;gap:6px;padding:14px 20px 20px;flex:1}
+.pop-card .pop-cat{font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c2)}
+.pop-body h3{font-size:1.15rem;line-height:1.25}
+.pop-card .card-desc{margin:2px 0 4px;flex:1 1 auto}
+.pop-chips{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px}
+.pop-chips li{background:var(--tint);color:var(--c2);font-size:.74rem;font-weight:700;padding:4px 11px;border-radius:99px}
+.pop-chips li.fast{background:#FFF3C4;color:#6B5200}
+.pop-card .card-btns{padding-top:4px}
+.pop-card .card-btns .btn{width:100%}
+
+/* ---- Test list rows: name and Add button line up ---- */
+.row .name{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+.row .name .link-btn{min-height:0;padding:0;line-height:1.35}
+
+/* ---- Phones ---- */
+@media(max-width:768px){
+  /* bottom bar: 4 items = 4 equal columns (it was built for 5, so everything sat to the left) */
+  .tabbar{grid-template-columns:repeat(4,minmax(0,1fr))}
+
+  /* floating buttons were covering text: small round buttons instead */
+  .floaters{gap:8px;right:10px}
+  .floaters .fab-how{width:44px;height:44px;min-width:44px;min-height:44px;padding:0;justify-content:center;gap:0;font-size:0;box-shadow:0 6px 16px rgba(14,58,49,.25)}
+  .floaters .fab-how span{width:30px;height:30px;font-size:1rem}
+  .floaters .fab-top{width:44px;height:44px;min-height:44px;font-size:1.1rem}
+
+  /* hero search + pills */
+  .hero-search input{min-width:0;text-overflow:ellipsis}
+  .radius-pill{display:block;border-radius:16px;text-align:center;line-height:1.4;padding:9px 14px}
+  .athome-t .btn{width:100%}
+
+  /* text blocks read left-aligned and evenly */
+  .faq-more{text-align:left}
+  .sec-h p{max-width:none}
+  .card-desc{-webkit-line-clamp:4;line-clamp:4}
+  .pop-card .card-desc{min-height:0}
+  #popularGrid > .pop-card{flex:0 0 84%;max-width:330px}
+
+  /* test list */
+  #results .row{align-items:center}
+  .row .rb{align-self:center}
+}
+@media(max-width:480px){
+  /* My Tests form: Age and Gender share one line */
+  .bk-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .ct-body{padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+  .ct-item{padding:10px}
+  .slot-note{font-size:.88rem;padding:10px 14px}
+  .bk-msg{padding:12px}
+}
+
+/* =====================================================================
+   v12: first screen (hero) animations: same motion, slower and softer
+   ===================================================================== */
+/* text fades in gently, one piece after another */
+.hero-c>*{animation:riseSoft 1.5s cubic-bezier(.22,1,.36,1) both}
+.hero-c>:nth-child(1){animation-delay:.15s}
+.hero-c>:nth-child(2){animation-delay:.4s}
+.hero-c>:nth-child(3){animation-delay:.65s}
+.hero-c>:nth-child(4){animation-delay:.9s}
+.hero-c>:nth-child(5){animation-delay:1.15s}
+.hero-c>:nth-child(6){animation-delay:1.4s}
+@keyframes riseSoft{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* lab scene: calmer and a little more see-through */
+.hero-live{opacity:.8}
+.hl-rotor{animation-duration:26s}
+@keyframes hlSpin{
+ 0%{transform:rotate(0);filter:blur(0);animation-timing-function:cubic-bezier(.4,0,.6,1)}
+ 25%{transform:rotate(540deg);filter:blur(.4px);animation-timing-function:linear}
+ 75%{transform:rotate(1980deg);filter:blur(.4px);animation-timing-function:cubic-bezier(.3,.4,.5,1)}
+ 100%{transform:rotate(2520deg);filter:blur(0)}}
+.hl-drop{animation-duration:10s}
+.hl-rip{animation-duration:10s}
+.hl-rip.r2{animation-delay:.5s}
+.hl-sp{animation-duration:10s}
+.hl-b{animation-duration:9s;animation-timing-function:ease-in-out}
+
+/* back-up illustration (shown only until the video plays) */
+.fl{animation-duration:12s}
+.f2{animation-duration:14s}.f3{animation-duration:11s}.f4{animation-duration:15s}
+@keyframes bob{50%{transform:translateY(-9px)}}
+.bub{animation-duration:9s;animation-timing-function:ease-in-out}
+.drip{animation-duration:5s}
+.hero-art .ring{transition:transform 1.2s cubic-bezier(.22,1,.36,1)}
+
+/* scrolling line of highlights above the header */
+.marquee-track{animation-duration:90s}
+
+/* video fades in softly instead of snapping */
+.hero-vid{animation:vidIn 1.6s ease both}
+@keyframes vidIn{from{opacity:0}to{opacity:1}}
+
+@media(prefers-reduced-motion:reduce){.hero-c>*,.hero-vid{animation:none}}
+
+
+/* =====================================================================
+   v13: hero visual. One clean lab scene, fully in view, not washed out
+   ===================================================================== */
+/* frame the video so the whole microscope, tubes and flask stay visible */
+.hero-photo video{top:-5%;height:110%;object-position:72% 50%}
+/* dark only where the text sits; the scene on the right stays bright */
+.hero-photo::after{background:
+  linear-gradient(90deg,rgba(7,33,28,.94) 0%,rgba(7,33,28,.8) 32%,rgba(7,33,28,.3) 56%,rgba(7,33,28,0) 80%),
+  linear-gradient(180deg,rgba(7,33,28,.3) 0%,rgba(7,33,28,0) 28%,rgba(7,33,28,.5) 100%)}
+.hero h1{text-shadow:0 2px 28px rgba(0,0,0,.3)}
+.hero-search{box-shadow:0 18px 44px rgba(0,0,0,.3)}
+.hero-c>:nth-child(7){animation-delay:1.65s}
+.hero .trust{margin-top:26px}
+@media(max-width:768px){
+  .hero-photo video{top:0;height:100%;object-position:80% 50%}
+  .hero-photo::after{background:linear-gradient(180deg,rgba(7,33,28,.6) 0%,rgba(7,33,28,.84) 65%,rgba(7,33,28,.92) 100%)}
+  .hero .trust li:last-child{grid-column:1/-1;justify-content:center}
+}
+.hero-photo video{filter:brightness(1.1) saturate(1.12)}
+
+
+/* =====================================================================
+   v14: new hero animation. Words appear one by one, slow zoom on the
+   lab scene, soft golden glow, shine on the badge. Calm and smooth.
+   ===================================================================== */
+@keyframes fadeSoft{from{opacity:0}to{opacity:1}}
+@keyframes wordIn{from{opacity:0;transform:translateY(16px);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes heroZoom{from{scale:1}to{scale:1.07}}
+@keyframes glowPulse{0%,100%{opacity:.3;scale:.94}50%{opacity:.65;scale:1.07}}
+@keyframes badgeShine{0%,65%{left:-70%}100%{left:140%}}
+
+/* headline words */
+.hw{display:inline-block;animation:wordIn 1.2s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(.25s + var(--w,0) * .16s)}
+.hero-main .tagline{animation:fadeSoft 1.2s ease 1.05s both}
+.hero-main .lead{animation:fadeSoft 1.2s ease 1.3s both}
+
+/* everything else fades in after the headline */
+.hero-c>*{animation:fadeSoft 1.2s ease both}
+.hero-c>:nth-child(1){animation-delay:.1s}
+.hero-c>:nth-child(3){animation-delay:1.55s}
+.hero-c>:nth-child(4){animation-delay:1.8s}
+.hero-c>:nth-child(5){animation-delay:2s}
+.hero-c>:nth-child(6){animation-delay:2.2s}
+.hero-c>.hero-swap{animation:none}
+
+/* lab scene slowly breathes in and out; golden glow pulses behind it */
+.hero-photo video{animation:vidIn 1.6s ease both,heroZoom 28s ease-in-out 1.6s infinite alternate}
+.hero-photo::before{content:"";position:absolute;z-index:2;right:3%;top:50%;width:min(640px,50vw);aspect-ratio:1;margin-top:calc(min(640px,50vw) / -2);border-radius:50%;background:radial-gradient(circle,rgba(232,197,71,.35),rgba(31,157,116,.25) 42%,transparent 70%);mix-blend-mode:screen;pointer-events:none;animation:glowPulse 8s ease-in-out infinite}
+
+/* a slow shine passes over the "Since 1992" badge */
+.since-badge{position:relative;overflow:hidden}
+.since-badge::after{content:"";position:absolute;top:0;bottom:0;left:-70%;width:45%;background:linear-gradient(100deg,transparent,rgba(255,241,176,.4),transparent);transform:skewX(-18deg);animation:badgeShine 7s ease-in-out 2.5s infinite}
+
+@media(max-width:768px){.hero-photo::before{display:none}}
+@media(prefers-reduced-motion:reduce){
+  .hw,.hero-main .tagline,.hero-main .lead,.hero-c>*,.hero-photo video{animation:none}
+  .hero-photo::before,.since-badge::after{display:none}
+}
+
+
+/* =====================================================================
+   v15: hero shows ONLY the "Since 1992" animation, always on and highlighted.
+   No video, no floating lab icons, no headline swap.
+   ===================================================================== */
+.hero-photo video,.hero-photo .hero-vid{display:none!important}
+.hero-art .fl,.hero-art .bub,.hero-art .drip{display:none}
+.hero.yrs-on .hero-main{opacity:1;transform:none;pointer-events:auto}
+.hero-years{width:min(500px,42vw);right:6%}
+.hero-years::before{content:"";position:absolute;inset:-6%;border-radius:50%;background:radial-gradient(circle,rgba(232,197,71,.28),rgba(232,197,71,0) 68%);animation:lgGlow 4s ease-in-out infinite;pointer-events:none}
+.hy-ring{stroke-width:12;filter:drop-shadow(0 0 14px rgba(232,197,71,.85))}
+.hy-num b{filter:drop-shadow(0 4px 26px rgba(232,197,71,.7))}
+.hy-num .hy-pre{color:#FFF1B0;font-size:.9rem}
+.hero.yrs-on .hero-ecg{opacity:1}
+@media(max-width:900px){.hero.yrs-on .hero-years{opacity:.5;width:min(360px,82vw)}}
+
+/* ===== Realistic lab icons + live test tube ===== */
+.tubeico{display:inline-grid;place-items:center;line-height:0}
+.tubeico svg.tube{display:block;stroke:none;fill:none;overflow:visible}
+.tube .tb-liq{will-change:transform}
+.tube .tb-men{transform-box:fill-box;transform-origin:center}
+.cart-btn .tubeico svg.tube{width:15px;height:38px}
+.cart-btn{min-height:50px}
+.fab-wa .tubeico svg.tube{width:12px;height:30px}
+.tabbar .tb-book .tubeico svg.tube{width:15px;height:38px;stroke:none;stroke-width:0}
+.tabbar .tb-book i{overflow:visible}
+.tubeico.big svg.tube{width:36px;height:92px;filter:drop-shadow(0 6px 8px rgba(14,58,49,.25))}
+.ct-tube{display:flex;align-items:center;gap:16px;margin-bottom:14px;padding:12px 16px;background:linear-gradient(160deg,#FFF6D6,#fff 80%);border:1px solid var(--line);border-radius:14px}
+.ct-tube[hidden]{display:none}
+.ct-tube b{display:block;color:var(--navy);font-family:var(--head)}
+.ct-tube p{margin:2px 0 0;font-size:.85rem;color:var(--muted)}
+
+/* ===== My Tests: two sections (Add tests / Book) ===== */
+.ct-tabs{display:flex;gap:6px;margin-bottom:14px;padding:5px;background:#EFEAD0;border-radius:14px}
+.ct-tabs button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border:0;border-radius:10px;background:transparent;color:var(--navy);font:800 .92rem var(--head);cursor:pointer;transition:background .25s,color .25s,box-shadow .25s}
+.ct-tabs button i{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(14,58,49,.12);font-style:normal;font-size:.78rem}
+.ct-tabs button.on{background:var(--teal-d);color:#fff;box-shadow:0 4px 10px rgba(15,122,92,.3)}
+.ct-tabs button.on i{background:rgba(255,255,255,.25)}
+.ct-tabs button.off{opacity:.5}
+.ct-step[hidden],.ct-step [hidden]{display:none!important}
+.ct-addmore{width:100%;margin-top:12px;min-height:50px;border-style:dashed;font-size:1rem}
+.ct-addnote{text-align:center;font-size:.8rem;color:var(--muted);margin:6px 0 4px}
+.ct-next{font-size:1rem}
+#cartDialog .bk-btns .ct-next::before{content:none}
+#cartDialog .bk-btns .ct-next{background:var(--teal-d)}
+.ct-sum{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#E3F3EA;border-radius:12px;color:var(--navy)}
+.ct-sum .link-btn{color:var(--teal-d);font-weight:800}
+
+/* Mobile: the "Serving since 1992" ring sits at the top of the home page where it can be seen */
+@media(max-width:900px){
+  .hero-years,.hero.yrs-on .hero-years{top:18px;right:50%;transform:translateX(50%);width:190px;z-index:3}
+  .hero.yrs-on .hero-years{opacity:1}
+  .hero-years::before{inset:-10%}
+  .hy-num b{font-size:2.7rem}
+  .hy-num span{font-size:.62rem;margin-top:2px;letter-spacing:.18em}
+  .hero-c{padding-top:226px}
+  .since-badge{display:none}
+}
