@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 <!-- Only verified details are included. Add telephone, street address and geo once confirmed. -->
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":["DiagnosticLab","MedicalBusiness"],"name":"Shiva Sathvika Diagnostic Lab & X-ray Imaging","alternateName":["Shiva Sathvika Diagnostic Lab","Shiva Sathvika Lab","Shiva Sathvikaa Lab","Shiva Satvika Lab","Shiva Sathvika Diagnostic Center"],"url":"https://shivasathvikadiagnostics.github.io/","logo":"https://shivasathvikadiagnostics.github.io/images/ss-logo.png","telephone":"+918217654091","description":"Diagnostic laboratory in Chikkaballapur offering blood tests, health packages, X-ray imaging and home sample collection.","address":{"@type":"PostalAddress","streetAddress":"Behind Sadhur Matt","addressLocality":"Chikkaballapur","addressRegion":"Karnataka","postalCode":"562101","addressCountry":"IN"},"geo":{"@type":"GeoCoordinates","latitude":13.4331349,"longitude":77.7250213},"hasMap":"https://www.google.com/maps/place/Shiva+Sathvik+Diagnostic+Lab+%26+X-ray+Imaging/@13.4331349,77.7250213,847m/data=!3m2!1e3!4b1!4m6!3m5!1s0x3bb1ef47480c3b37:0x234728a1f9e0343c!8m2!3d13.4331349!4d77.7250213","foundingDate":"1992","areaServed":"Within 5 km of the lab, Chikkaballapur","openingHoursSpecification":[{"@type":"OpeningHoursSpecification","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],"opens":"07:00","closes":"20:30"}]}
@@ -208,7 +208,7 @@
     </div>
     <form class="hero-search" id="heroSearch" role="search">
       <label class="sr" for="heroQ">Search for a test</label>
-      <input id="heroQ" type="search" placeholder="Search a test or a need, e.g. sugar, thyroid…" maxlength="60" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="heroSuggest" aria-autocomplete="list">
+      <input id="heroQ" type="search" placeholder="Search a test or a need, e.g. sugar, thyroid…" maxlength="60" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="search" enterkeyhint="search" role="combobox" aria-expanded="false" aria-controls="heroSuggest" aria-autocomplete="list">
       <button class="btn btn-p" type="submit">Browse</button>
       <ul class="suggest" id="heroSuggest" role="listbox" aria-label="Tests. Tap a test to add it to My Tests" hidden></ul>
     </form>
@@ -263,7 +263,7 @@
       <div>
         <div class="finder">
           <label class="sr" for="q">Search for a test</label>
-          <input id="q" type="search" placeholder="Search for a test…" autocomplete="off">
+          <input id="q" type="search" placeholder="Search for a test…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="search" enterkeyhint="search">
         </div>
         <p class="small cat-note">Some tests need fasting. Follow your doctor's advice and confirm preparation and report time with the lab.</p>
         <div class="cat-tiles" id="tiles"></div>
@@ -463,7 +463,7 @@
         <div class="field bk-full"><label for="bkName">Patient name *</label><input id="bkName" name="name" type="text" autocomplete="off" maxlength="60" required><span class="err" id="e-bkName" role="alert"></span></div>
         <div class="field"><label for="bkAge">Age *</label><input id="bkAge" autocomplete="off" name="age" type="number" inputmode="numeric" min="0" max="120" required><span class="err" id="e-bkAge" role="alert"></span></div>
         <div class="field"><label for="bkGender">Gender *</label><select id="bkGender" name="gender" required><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select><span class="err" id="e-bkGender" role="alert"></span></div>
-        <div class="field bk-full"><label for="bkPhone">Phone number *</label><input id="bkPhone" name="phone" type="tel" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="10-digit mobile" required><span class="err" id="e-bkPhone" role="alert"></span></div>
+        <div class="field bk-full"><label for="bkPhone">Phone number *</label><input id="bkPhone" name="phone" type="tel" inputmode="tel" autocomplete="off" maxlength="17" placeholder="Indian mobile, e.g. 98765 43210" required><span class="err" id="e-bkPhone" role="alert"></span></div>
         <div class="field bk-full"><label for="bkDoctor">Doctor's name (Self if no doctor)</label><input id="bkDoctor" autocomplete="off" name="doctor" type="text" maxlength="60" value="Self" placeholder="Self"></div>
         <div class="field bk-full"><label for="bkLandmark">Nearest landmark *</label><select id="bkLandmark" name="landmark" required></select><span class="err" id="e-bkLandmark" role="alert"></span></div>
         <div class="field bk-full" id="bkOtherWrap" hidden><label for="bkOther">Type your landmark *</label><input id="bkOther" autocomplete="off" name="other" type="text" maxlength="60"><span class="err" id="e-bkOther" role="alert"></span></div>
@@ -521,6 +521,6 @@
   <div class="cart-btns" id="askBtns"></div>
 </dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="script.js?v=16"></script>
+<script src="script.js?v=18"></script>
 </body>
 </html>
