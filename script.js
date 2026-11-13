@@ -498,11 +498,22 @@ function waApp(text) { return "whatsapp://send?phone=" + WHATSAPP_NUMBER + "&tex
 function waLink(text) { return "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(text); }
 /* Phone: open the WhatsApp app directly. Computer: whatsapp:// does nothing there, so use the wa.me link (opens WhatsApp Desktop or WhatsApp Web) */
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform));
+/* INDIAN NUMBERS ONLY: 10 digits starting with 6-9. +91 / 91 / 0 in front is accepted and removed.
+   Anything else (foreign numbers, letters, repeated digits like 9999999999) returns "" and is rejected. */
+function indianPhone(v) {
+  const t = String(v == null ? "" : v).trim();
+  if (!/^\+?[\d\s\-()]+$/.test(t)) return "";
+  let p = t.replace(/\D/g, "");
+  if (p.length === 12 && p.startsWith("91")) p = p.slice(2);
+  else if (p.length === 11 && p.startsWith("0")) p = p.slice(1);
+  else if (p.length === 13 && p.startsWith("091")) p = p.slice(3);
+  return /^[6-9]\d{9}$/.test(p) && !/^(\d)\1{9}$/.test(p) ? p : "";
+}
 const DETAIL_KEY = "ssdl_patient";
 const bk = (id) => $("#" + id);
 function readDetails() {
   const lm = bk("bkLandmark").value === "Other" ? clean(bk("bkOther").value, 60) : (LANDMARKS.includes(bk("bkLandmark").value) ? bk("bkLandmark").value : "");
-  return { name: clean(bk("bkName").value, 60), age: (() => { const a = parseInt(bk("bkAge").value, 10); return Number.isFinite(a) ? String(a).slice(0, 3) : ""; })(), phone: bk("bkPhone").value.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "").slice(0, 10),
+  return { name: clean(bk("bkName").value, 60), age: (() => { const a = parseInt(bk("bkAge").value, 10); return Number.isFinite(a) ? String(a).slice(0, 3) : ""; })(), phone: indianPhone(bk("bkPhone").value),
     doctor: clean(bk("bkDoctor").value, 60) || "Self", landmark: lm,
     gender: ["Male", "Female", "Other"].includes(bk("bkGender").value) ? bk("bkGender").value : "",
     area: bk("bkArea").value === "Other" ? clean(bk("bkAreaOther").value, 60) : (AREAS.includes(bk("bkArea").value) ? bk("bkArea").value : "") };
@@ -606,6 +617,7 @@ async function submitBooking(d) {
   setTimeout(() => refreshSlots(true), 1200);   // warm up the booking server while the visitor browses, so booking later is fast
   try { localStorage.removeItem(DETAIL_KEY); } catch (e) {}   // privacy: patient details are never kept in the browser (also wipes data saved by older versions)
 })();
+bk("bkPhone").addEventListener("input", (e) => { const v = e.target.value.replace(/[^\d+\s\-()]/g, ""); if (v !== e.target.value) e.target.value = v; });
 ["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther", "bkRadius"].forEach((id) => {
   const clear = () => { bk("e-" + id).textContent = ""; bk(id).removeAttribute("aria-invalid"); };
   bk(id).addEventListener("input", clear); bk(id).addEventListener("change", clear);
@@ -616,7 +628,7 @@ function validateBk() {
   else if (!NAME_OK.test(d.name)) errs.bkName = "Use letters only in the name.";
   const age = Number(d.age);
   if (!d.age || !(age >= 0 && age <= 120)) errs.bkAge = "Enter a valid age.";
-  if (!/^[6-9]\d{9}$/.test(d.phone)) errs.bkPhone = "Enter a valid 10-digit mobile number.";
+  if (!d.phone) errs.bkPhone = "Enter a valid Indian mobile number (10 digits, starting with 6, 7, 8 or 9).";
   if (!bk("bkLandmark").value) errs.bkLandmark = "Please choose a landmark.";
   else if (!d.landmark) errs.bkOther = "Please type your landmark.";
   if (!d.gender) errs.bkGender = "Please select gender.";
@@ -1085,7 +1097,7 @@ function setActive(i) {
   if (i >= 0) { heroQ.setAttribute("aria-activedescendant", lis[i].id); lis[i].scrollIntoView({ block: "nearest" }); }
   else heroQ.removeAttribute("aria-activedescendant");
 }
-function addFromSearch(t, btnEl) { onAddTap(t.id, btnEl); }
+function addFromSearch(t, btnEl) { onAddTap(t.id, btnEl); if (IS_MOBILE && document.activeElement === heroQ) heroQ.blur(); }   // phone: keyboard goes away after adding a test
 function renderSuggest() {
   const q = heroQ.value.trim();
   suggest.replaceChildren();
@@ -1119,6 +1131,9 @@ function renderSuggest() {
   suggest.scrollTop = 0;
   heroQ.setAttribute("aria-expanded", "true");
 }
+suggest.addEventListener("touchmove", () => { if (document.activeElement === heroQ) heroQ.blur(); }, { passive: true });
+/* phone: when the search box is tapped, bring it to the top so the list is not hidden behind the keyboard */
+heroQ.addEventListener("focus", () => { if (IS_MOBILE) setTimeout(() => $("#heroSearch").scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" }), 250); });
 heroQ.addEventListener("input", renderSuggest);
 heroQ.addEventListener("focus", renderSuggest);
 heroQ.addEventListener("click", () => { if (suggest.hidden) renderSuggest(); });
@@ -1134,9 +1149,14 @@ $("#heroSearch").addEventListener("submit", (e) => {
   e.preventDefault();
   if (sugActive >= 0 && sugItems[sugActive]) { addFromSearch(sugItems[sugActive], $("#sg-" + sugActive + " button")); return; }
   hideSuggest();
+  if (IS_MOBILE) heroQ.blur();
   openCatalogue(heroQ.value);
 });
-$$(".hero-chips button").forEach((b) => b.addEventListener("click", () => { heroQ.value = b.dataset.q; heroQ.focus(); renderSuggest(); }));
+$$(".hero-chips button").forEach((b) => b.addEventListener("click", () => {
+  heroQ.value = b.dataset.q;
+  if (IS_MOBILE) { renderSuggest(); $("#heroSearch").scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" }); }   // phone: NO keyboard, just the matching tests
+  else { heroQ.focus(); renderSuggest(); }
+}));
 
 /* Popular tests slider: arrows scroll one card at a time */
 (function popularSlider() {
