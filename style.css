@@ -1719,3 +1719,13 @@ html:has(dialog[open]){overflow:hidden}
   .hero-c{padding-top:226px}
   .since-badge{display:none}
 }
+
+/* Phone search: bigger tap targets, list never hidden under the sticky header */
+.hero-search{scroll-margin-top:84px}
+@media (max-width:640px){
+  .hero-chips{gap:10px}
+  .hero-chips button{min-height:44px;padding:0 18px;font-size:.9rem}
+  .sg-item{min-height:56px;padding-top:10px;padding-bottom:10px}
+  .sg-add{min-width:44px;min-height:44px}
+  .suggest{-webkit-overflow-scrolling:touch}
+}
