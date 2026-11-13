@@ -37,6 +37,14 @@
 - **Clickjacking:** a copy of the site placed inside another page hides itself.
 - After pasting the new `Code.gs`: Deploy > Manage deployments > Edit > **New version**.
 
+## 4d. Indian numbers only and injection protection (v17)
+- **Indian mobile numbers only**: 10 digits starting with 6, 7, 8 or 9. `+91`, `91` or `0` in front is accepted and removed. Foreign numbers, letters and fake numbers such as 9999999999 are rejected on the website AND again on the server.
+- **Phone box** accepts only digits, spaces, `+`, `-` and brackets (typing or pasting anything else is removed).
+- **Server accepts plain text and numbers only**: any object, list or nested data in a booking is rejected.
+- **Doctor, landmark, area and tests** keep only letters, digits and simple punctuation. `< > " ` = @ { } | ~ ^ $ \\` and emoji are removed, so HTML, script, formula and URL injection cannot work. A leading `+ - = @` is neutralised so Google Sheets never runs it as a formula.
+- **No XSS**: the page writes visitor text with `textContent` only, the Content-Security-Policy allows scripts only from this site and Cloudflare Turnstile, and framing is blocked.
+- After pasting the new `Code.gs`: Deploy > Manage deployments > Edit > **New version** > Deploy.
+
 ## 4c. Best upgrade: put Cloudflare (free) in front of the site
 GitHub Pages cannot send security headers. Once you own the domain, add it to Cloudflare (free plan) and turn on: Always HTTPS, HSTS, "Bot Fight Mode", and a Transform Rule adding `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Also turn on Turnstile (section 3).
 
