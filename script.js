@@ -496,6 +496,8 @@ function clearBkForm() {
    The wa.me link is only kept as a small backup if the app does not open. */
 function waApp(text) { return "whatsapp://send?phone=" + WHATSAPP_NUMBER + "&text=" + encodeURIComponent(text); }
 function waLink(text) { return "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(text); }
+/* Phone: open the WhatsApp app directly. Computer: whatsapp:// does nothing there, so use the wa.me link (opens WhatsApp Desktop or WhatsApp Web) */
+const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform));
 const DETAIL_KEY = "ssdl_patient";
 const bk = (id) => $("#" + id);
 function readDetails() {
@@ -842,7 +844,10 @@ function setDoneStage(stage) {
 function openWhatsApp() {
   if (!doneState) return;
   doneState.opened = true; clearTimeout(doneTimer);
-  location.href = doneState.wa.app;
+  const url = doneState.wa.app;
+  if (IS_MOBILE) { location.href = url; return; }
+  const w = window.open(url, "_blank", "noopener");   // computer: new tab, so this page stays open
+  if (!w) location.href = url;
 }
 function showDone(res, wa, when) {
   doneState = { res, wa, when, stage: "start", opened: false };
@@ -851,7 +856,7 @@ function showDone(res, wa, when) {
   setDoneStage("start");
   doneDlg.showModal();
   clearTimeout(doneTimer);
-  doneTimer = setTimeout(openWhatsApp, 1000);   // opens WhatsApp for them; the button is there if it does not
+  doneTimer = setTimeout(openWhatsApp, 400);   // opens WhatsApp for them; the button is there if it does not
 }
 $("#doneWa").addEventListener("click", (e) => { e.preventDefault(); openWhatsApp(); });
 $("#doneWeb").addEventListener("click", () => { clearTimeout(doneTimer); if (doneState) doneState.opened = true; });
@@ -889,9 +894,12 @@ $("#ctGo").addEventListener("click", async (e) => {
   if (TURNSTILE_SITE_KEY && !tsToken) { const h = $("#ctHint"); h.hidden = false; h.textContent = "Please wait for the security check to finish, then tap Book again."; setupTurnstile(); return; }
   go.dataset.busy = "1"; go.setAttribute("aria-disabled", "true");
   const label = go.textContent; go.textContent = "Booking…";
-  const res = await submitBooking(d);
+  let res = await submitBooking(d);
   delete go.dataset.busy; go.textContent = label; go.removeAttribute("aria-disabled");
   resetTurnstile();
+  /* Only "closed" and "full" stop a booking. Any other server problem (busy, slow, error): do NOT lose the patient,
+     still open WhatsApp so the lab receives the request. */
+  if (res && res.ok === false && !res.closed && !res.full) res = { ok: true, offline: true, fallback: true };
   if (!res || res.ok === false) {
     const hint = $("#ctHint"); hint.hidden = false;
     hint.textContent = res && res.closed ? dayMsg(0, true) : res && res.full ? dayMsg(+bk("bkDay").value, false) : (res && res.network ? "Could not reach the booking system. Check your internet and try again, or call the lab." : "Could not book right now" + (res && res.error ? " (" + String(res.error).slice(0, 60) + ")" : "") + ". Please try again or call the lab.");
@@ -899,7 +907,7 @@ $("#ctGo").addEventListener("click", async (e) => {
     return;
   }
   const o = +bk("bkDay").value, when = (o ? "tomorrow" : "today") + ", " + dayLabel(o);
-  const msg = cartMessage(res.bookingNo), wa = { app: waApp(msg), web: waLink(msg) };
+  const msg = cartMessage(res.bookingNo), wa = { app: IS_MOBILE ? waApp(msg) : waLink(msg), web: waLink(msg) };
   cartDlg.close();
   wipeBooking(); bump();
   slotsAt = 0; refreshSlots(true);   // the slot count has changed
