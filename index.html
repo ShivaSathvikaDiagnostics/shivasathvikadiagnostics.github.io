@@ -22,12 +22,19 @@
 <meta property="og:locale" content="en_IN">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Shiva Sathvika Diagnostic Lab &amp; X-ray Imaging, Chikkaballapur">
-<meta property="og:description" content="Accurate tests, caring service. Tests and home sample collection on WhatsApp.">
-<meta property="og:image" content="https://shivasathvikadiagnostics.github.io/files/og-image.jpg">
+<meta property="og:description" content="Accurate tests, caring service. Tests and home sample collection booking.">
+<meta property="og:image" content="https://shivasathvikadiagnostics.github.io/files/og-hero.jpg">
+<meta property="og:image:secure_url" content="https://shivasathvikadiagnostics.github.io/files/og-hero.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Shiva Sathvika Diagnostic Lab, Chikkaballapur. Serving since 1992.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://shivasathvikadiagnostics.github.io/files/og-hero.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=22">
 <!-- Site name shown by Google above the web address -->
 <script type="application/ld+json">
 {
@@ -243,8 +250,8 @@
         <p class="lg-eyebrow">No Need to Visit the Lab!</p>
         <h2 id="athomeH">Get Your Tests Done from the Comfort of Your Home</h2>
         <p class="radius-pill"><span aria-hidden="true">📍</span> Home collection within <b>5 km</b> of the lab</p>
-        <p>Booking is simple! Choose your tests, book a slot for today or tomorrow on WhatsApp, and our team will reach your home to collect your sample. Your reports will be sent to you online.</p>
-        <a class="btn btn-g" href="#contact" data-action="book">Book Home Collection on WhatsApp</a>
+        <p>Booking is simple! Choose your tests, book a slot for today or tomorrow, and your booking stays pending until our lab confirms it on WhatsApp within 30 minutes. Then our team will reach your home to collect your sample. Your reports will be sent to you online.</p>
+        <a class="btn btn-g" href="#contact" data-action="book">Book Home Collection</a>
       </div>
       <ol class="athome-steps">
         <li><b>1</b><div><h3>Choose Your Tests</h3><p>Search a test, tap it, and it is added to My Tests (the test tube icon).</p></div></li>
@@ -259,7 +266,7 @@
 <section class="sec" id="popular">
   <div class="wrap">
     <div class="pop-head">
-      <div class="sec-h"><h2>Popular tests</h2><p>Commonly requested tests.</p></div>
+      <div class="sec-h"><h2>Popular tests</h2><p>Commonly requested tests.<span class="swipe-hint"> Swipe to see more →</span></p></div>
       <div class="pop-nav">
         <button class="pop-arrow" id="popPrev" type="button" aria-label="Previous tests">‹</button>
         <button class="pop-arrow" id="popNext" type="button" aria-label="Next tests">›</button>
@@ -476,9 +483,9 @@
       <div class="bk-grid">
         <div class="field bk-full"><label for="bkDay">Collection day *</label><select id="bkDay" name="day" required></select><span class="err" id="slotStatus" role="button" tabindex="0" style="cursor:pointer" hidden></span></div>
         <div class="field bk-full"><label for="bkName">Patient name *</label><input id="bkName" name="name" type="text" autocomplete="off" maxlength="60" required><span class="err" id="e-bkName" role="alert"></span></div>
-        <div class="field"><label for="bkAge">Age *</label><input id="bkAge" autocomplete="off" name="age" type="number" inputmode="numeric" min="0" max="120" required><span class="err" id="e-bkAge" role="alert"></span></div>
+        <div class="field"><label for="bkAge">Age *</label><input id="bkAge" autocomplete="off" name="age" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="7 to 109" required><span class="err" id="e-bkAge" role="alert"></span></div>
         <div class="field"><label for="bkGender">Gender *</label><select id="bkGender" name="gender" required><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select><span class="err" id="e-bkGender" role="alert"></span></div>
-        <div class="field bk-full"><label for="bkPhone">Phone number *</label><input id="bkPhone" name="phone" type="tel" inputmode="tel" autocomplete="off" maxlength="17" placeholder="Indian mobile, e.g. 98765 43210" required><span class="err" id="e-bkPhone" role="alert"></span></div>
+        <div class="field bk-full"><label for="bkPhone">WhatsApp number *</label><input id="bkPhone" name="phone" type="tel" inputmode="numeric" pattern="[6-9][0-9]{9}" autocomplete="off" maxlength="10" placeholder="10-digit WhatsApp number" required aria-describedby="e-bkPhone"><span class="field-note">Enter the number you use on WhatsApp. Our lab sends your booking confirmation on this number within 30 minutes.</span><span class="err" id="e-bkPhone" role="alert"></span></div>
         <div class="field bk-full"><label for="bkDoctor">Doctor's name (Self if no doctor)</label><input id="bkDoctor" autocomplete="off" name="doctor" type="text" maxlength="60" value="Self" placeholder="Self"></div>
         <div class="field bk-full"><label for="bkLandmark">Nearest landmark *</label><select id="bkLandmark" name="landmark" required></select><span class="err" id="e-bkLandmark" role="alert"></span></div>
         <div class="field bk-full" id="bkOtherWrap" hidden><label for="bkOther">Type your landmark *</label><input id="bkOther" autocomplete="off" name="other" type="text" maxlength="60"><span class="err" id="e-bkOther" role="alert"></span></div>
@@ -491,13 +498,36 @@
     </form>
     <div class="bk-msg">
       <span class="bk-wa" aria-hidden="true">✆</span>
-      <p>Tap Book. WhatsApp opens with your details. <strong>Press Send there to finish your booking.</strong></p>
+      <p>Tap <strong>Book Home Collection</strong> to send your request. <strong>It stays pending until our lab confirms it on your WhatsApp number within 30 minutes.</strong></p>
     </div>
     <div class="cart-btns bk-btns">
       <a class="btn btn-p" id="ctGo" href="#" aria-disabled="true">Book Home Collection</a>
     </div>
     <p class="small" id="ctHint" role="status"></p>
     </section>
+  </div>
+  <div class="bkp" id="bkProg" hidden aria-live="polite" role="status">
+    <div class="bkp-scene" aria-hidden="true">
+      <svg viewBox="0 0 120 150" class="bkp-tube" width="120" height="150">
+        <defs><clipPath id="bkpClip"><path d="M44 18h32v78a16 16 0 0 1-32 0z"/></clipPath>
+        <linearGradient id="bkpG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2FC592"/><stop offset="1" stop-color="#0F7A5C"/></linearGradient></defs>
+        <rect x="38" y="10" width="44" height="12" rx="5" fill="#E8C547"/>
+        <path d="M44 18h32v78a16 16 0 0 1-32 0z" fill="#fff" stroke="#0E3A31" stroke-width="3"/>
+        <g clip-path="url(#bkpClip)"><g class="bkp-liq"><rect x="40" y="0" width="40" height="130" fill="url(#bkpG)"/>
+          <path class="bkp-wave" d="M30 0q10-7 20 0t20 0t20 0t20 0v8H30z" fill="#2FC592"/></g>
+          <circle class="bkp-b b1" cx="56" cy="104" r="3" fill="#fff" opacity=".8"/><circle class="bkp-b b2" cx="66" cy="108" r="2.2" fill="#fff" opacity=".8"/><circle class="bkp-b b3" cx="60" cy="100" r="1.6" fill="#fff" opacity=".8"/></g>
+        <rect x="49" y="28" width="5" height="48" rx="2.5" fill="#fff" opacity=".55"/>
+      </svg>
+      <span class="bkp-ring r1"></span><span class="bkp-ring r2"></span>
+    </div>
+    <h3 class="bkp-t" id="bkpT">Booking your home collection</h3>
+    <ul class="bkp-steps">
+      <li data-s="0"><i></i><span>Checking your slot</span></li>
+      <li data-s="1"><i></i><span>Saving your details</span></li>
+      <li data-s="2"><i></i><span>Sending your request to the lab</span></li>
+    </ul>
+    <div class="bkp-bar"><i></i></div>
+    <p class="bkp-note" id="bkpNote">Please wait a moment. Do not close this page.</p>
   </div>
 </dialog>
 
@@ -512,23 +542,34 @@
   <ol class="how-steps">
     <li><b>1</b><div><h4>Choose your tests</h4><p>Search the test name or your need (like sugar or thyroid) and tap the test to add it.</p></div></li>
     <li><b>2</b><div><h4>Open My Tests</h4><p>Tap the test tube icon. Pick Today or Tomorrow and fill in your details.</p></div></li>
-    <li><b>3</b><div><h4>Tap Book Home Collection</h4><p>WhatsApp opens with your details. Press <b>Send</b>. Your booking is done when we get your message.</p></div></li>
+    <li><b>3</b><div><h4>Tap Book Home Collection</h4><p>Check your details in the popup. Your booking is pending until our lab sends you a <b>confirmation on WhatsApp within 30 minutes</b>.</p></div></li>
   </ol>
   <p class="slot-note"><b>Slots available.</b> Book for today before 4 PM. If today is full, book for tomorrow. We come to homes within 5 km of the lab.</p>
   <div class="cart-btns"><button class="btn btn-p" id="howGo" type="button">Choose tests</button><button class="btn btn-o" id="howClose" type="button">Close</button></div>
 </dialog>
 <dialog id="doneDialog" aria-labelledby="doneT">
-  <img class="done-logo" src="images/ss-logo.png" alt="" width="61" height="56">
-  <h3 id="doneT">One last step</h3>
-  <p id="doneMsg"></p>
-  <ol class="done-steps" id="doneSteps">
-    <li>Tap <b>Open WhatsApp</b>.</li>
-    <li>Press the green <b>Send</b> button in WhatsApp.</li>
-    <li>Come back here and tap <b>I sent the message</b>.</li>
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+  <div class="done-head">
+    <div class="done-tick" aria-hidden="true">
+      <svg viewBox="0 0 80 80" width="84" height="84"><circle class="dt-ring" cx="40" cy="40" r="34" fill="none" stroke="#1F9D74" stroke-width="5" stroke-linecap="round"/><circle class="dt-fill" cx="40" cy="40" r="28" fill="#1F9D74"/><path class="dt-check" d="M26 41l10 10 19-21" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h3 id="doneT">Thank you! Your booking request is received</h3>
+    <p class="done-status ok" id="doneStatus" role="status">Awaiting confirmation from our lab</p>
+  </div>
+  <div class="done-body">
+  <p class="done-info" id="doneWarn"><b>What happens next:</b> our lab will confirm your slot on WhatsApp at <b id="doneNumV"></b> within 30 minutes. Please keep your phone nearby.</p>
+  <ol class="done-flow" aria-label="What happens next">
+    <li class="on"><i>✓</i><span>Request sent</span></li>
+    <li class="next"><i>2</i><span>Lab confirms on WhatsApp</span></li>
+    <li><i>3</i><span>Our team visits your home</span></li>
   </ol>
-  <p class="done-warn" id="doneWarn"><b>Your booking is not complete until you press Send in WhatsApp.</b></p>
-  <div class="cart-btns"><a class="btn btn-p" id="doneWa" href="#">Open WhatsApp</a><button class="btn btn-o" id="doneSent" type="button">I sent the message</button><button class="btn btn-o" id="doneClose" type="button" hidden>Close</button></div>
-  <p class="small done-alt" id="doneAlt"><a id="doneWeb" href="#">WhatsApp app not installed? Use web link</a></p>
+  <h4 class="done-h">Your booking details</h4>
+  <dl class="done-det" id="doneDet"></dl>
+  </div>
+  <div class="cart-btns done-btns">
+    <a class="btn btn-o" href="tel:8217654091">Call the lab</a>
+    <button class="btn btn-p" id="doneClose" type="button">OK</button>
+  </div>
 </dialog>
 <dialog id="askDialog" aria-labelledby="askT">
   <h3 id="askT"></h3>
@@ -536,6 +577,6 @@
   <div class="cart-btns" id="askBtns"></div>
 </dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="script.js?v=18"></script>
+<script src="script.js?v=22"></script>
 </body>
 </html>

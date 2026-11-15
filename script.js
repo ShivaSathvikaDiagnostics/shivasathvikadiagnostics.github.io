@@ -152,7 +152,7 @@ const PACKAGES = [
 const FAQ_GROUPS = [
   { id:"web", label:"Website", items:[
     ["How do I add a test?", "Type a test name (or a need like sugar or thyroid) in the search bar and tap the test you want. It is added to My Tests, the test tube icon at the top. You can add as many tests as you need."],
-    ["How do I book?", "Tap the test tube icon (My Tests), choose today or tomorrow, fill in the patient's details and tap Book Home Collection. WhatsApp opens with your details. Press Send to finish your booking."],
+    ["How do I book?", "Tap the test tube icon (My Tests), choose today or tomorrow, fill in the patient's details and tap Book Home Collection. A popup shows all your details. Your booking stays pending until our lab sends you a confirmation on WhatsApp within 30 minutes."],
     ["Do I need to create an account?", "No. You do not need to sign up or log in."],
     ["Is my personal information safe?", "Your details are used only to book your home collection. They are not saved in your browser, and the form is cleared after you book."],
     ["Can I just walk in without booking?", "Yes. You can walk in during working hours (Monday to Saturday, 7:00 AM to 8:30 PM). Use Get Directions in the Contact section to find us, behind Sadhur Matt."],
@@ -169,9 +169,9 @@ const FAQ_GROUPS = [
   { id:"home", label:"Home Collection", items:[
     ["Is home sample collection available at my address?", "Yes, if your address is within 5 km of the lab (Behind Sadhur Matt, Chikkaballapur). The booking form asks you to confirm this. If you live further away, please call the lab."],
     ["How many bookings are taken each day?", "Slots are limited each day. You can book for today until 4 PM. If today is full, book for tomorrow, which is open at any time."],
-    ["When will the team reach my home?", "After you tap Book, WhatsApp opens with your details. Press Send. Our team then confirms with you on WhatsApp. Please keep your phone with you."],
+    ["When will the team reach my home?", "After you tap Book, our lab checks your request and sends you a confirmation on the WhatsApp number you entered within 30 minutes. Until then your booking is pending. Please keep your phone with you."],
     ["How should I prepare at home?", "If your test needs fasting, follow the instructions shown for it. Stay at the address you gave and keep your phone switched on."],
-    ["Can I book for another person, such as my parent?", "Yes. Enter the patient's name, age and your contact number. Use My Tests to add the tests, and tap Add another if the same test is needed for two people."],
+    ["Can I book for another person, such as my parent?", "Yes. Enter the patient's name, age and your WhatsApp number, where the lab will send the confirmation. Use My Tests to add the tests, and tap Add another if the same test is needed for two people."],
     ["Is there a charge for home collection?", "Please confirm the charges with the lab on WhatsApp or by phone before the visit."]
   ]}
 ];
@@ -256,7 +256,6 @@ function cleanLines(v, max) {
 const NAME_OK = /^[\p{L}\p{M}][\p{L}\p{M} .'\-]{1,59}$/u;
 const phoneDigits = PHONE_NUMBER.replace(/[^\d+]/g, "");
 const phoneOk = /^\+?\d{8,15}$/.test(phoneDigits);
-const waOk = /^\d{11,15}$/.test(WHATSAPP_NUMBER);
 
 let toastTimer;
 function toast(msg, linkText, href) {
@@ -492,23 +491,22 @@ function clearBkForm() {
   buildAreaOptions();
   buildDayOptions();
 }
-/* Opens the WhatsApp app directly (whatsapp://), not the wa.me web page.
-   The wa.me link is only kept as a small backup if the app does not open. */
-function waApp(text) { return "whatsapp://send?phone=" + WHATSAPP_NUMBER + "&text=" + encodeURIComponent(text); }
-function waLink(text) { return "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(text); }
-/* Phone: open the WhatsApp app directly. Computer: whatsapp:// does nothing there, so use the wa.me link (opens WhatsApp Desktop or WhatsApp Web) */
+/* Phone or tablet (used for the search box only) */
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform));
-/* INDIAN NUMBERS ONLY: 10 digits starting with 6-9. +91 / 91 / 0 in front is accepted and removed.
-   Anything else (foreign numbers, letters, repeated digits like 9999999999) returns "" and is rejected. */
+/* PHONE: exactly 10 digits, starting with 6-9 (Indian mobile). No +91, spaces or letters are accepted.
+   Repeated digits like 9999999999 are rejected too. */
 function indianPhone(v) {
-  const t = String(v == null ? "" : v).trim();
-  if (!/^\+?[\d\s\-()]+$/.test(t)) return "";
-  let p = t.replace(/\D/g, "");
-  if (p.length === 12 && p.startsWith("91")) p = p.slice(2);
-  else if (p.length === 11 && p.startsWith("0")) p = p.slice(1);
-  else if (p.length === 13 && p.startsWith("091")) p = p.slice(3);
+  const p = String(v == null ? "" : v);
   return /^[6-9]\d{9}$/.test(p) && !/^(\d)\1{9}$/.test(p) ? p : "";
 }
+/* Turns anything typed or pasted into at most 10 digits. A pasted +91 / 91 / 0 prefix is dropped, not counted. */
+function tenDigits(raw) {
+  let v = String(raw == null ? "" : raw).replace(/\D/g, "");
+  if (v.length === 12 && v.startsWith("91")) v = v.slice(2);
+  else if (v.length === 11 && v.startsWith("0")) v = v.slice(1);
+  return v.slice(0, 10);
+}
+const fmtPhone = (p) => "+91 " + p.slice(0, 5) + " " + p.slice(5);
 const DETAIL_KEY = "ssdl_patient";
 const bk = (id) => $("#" + id);
 function readDetails() {
@@ -521,15 +519,6 @@ function readDetails() {
 function dayLabel(offset) {
   const d = new Date(); d.setDate(d.getDate() + offset);
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-}
-function cartMessage(no) {
-  const d = readDetails(), o = +bk("bkDay").value;
-  return "Hello Shiva Sathvika Lab 🙏\nI want to confirm my *Home Sample Collection* booking." + (no ? "\nBooking No: " + no : "") +
-    "\n\n📅 " + (o ? "Tomorrow" : "Today") + ", " + dayLabel(o) +
-    "\n\n*Tests*\n" + cartLines().join("\n") +
-    "\n\n*Patient*\n" + d.name + ", " + d.age + " yrs, " + d.gender + "\n📞 " + d.phone + "\nDoctor: " + d.doctor +
-    "\n\n📍 " + d.area + "\nLandmark: " + d.landmark +
-    "\n\nPlease confirm my slot. Thank you.";
 }
 /* Slots: read from the Google Sheet (server counts, max 50 per day) */
 let slots = null;
@@ -603,6 +592,10 @@ async function submitBooking(d) {
   return { ok: false, network: true };
 }
 (function initBkForm() {
+  /* Age accepts digits only (typing, pasting, or autofill) */
+  const ageEl = bk("bkAge");
+  ageEl.addEventListener("input", () => { const v = ageEl.value.replace(/\D/g, "").slice(0, 3); if (v !== ageEl.value) ageEl.value = v; });
+  ageEl.addEventListener("keydown", (e) => { if (e.key.length === 1 && !/\d/.test(e.key) && !e.ctrlKey && !e.metaKey) e.preventDefault(); });
   buildDayOptions();
   const ss = $("#slotStatus"); if (ss) { ss.addEventListener("click", () => refreshSlots(true)); }
   const sel = bk("bkLandmark");
@@ -617,7 +610,13 @@ async function submitBooking(d) {
   setTimeout(() => refreshSlots(true), 1200);   // warm up the booking server while the visitor browses, so booking later is fast
   try { localStorage.removeItem(DETAIL_KEY); } catch (e) {}   // privacy: patient details are never kept in the browser (also wipes data saved by older versions)
 })();
-bk("bkPhone").addEventListener("input", (e) => { const v = e.target.value.replace(/[^\d+\s\-()]/g, ""); if (v !== e.target.value) e.target.value = v; });
+bk("bkPhone").addEventListener("input", (e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); if (v !== e.target.value) e.target.value = v; });   // digits only, max 10
+bk("bkPhone").addEventListener("paste", (e) => {   // "+91 98765 43210" pasted becomes 9876543210
+  const t = (e.clipboardData || window.clipboardData); if (!t) return;
+  e.preventDefault();
+  e.target.value = tenDigits(t.getData("text"));
+  e.target.dispatchEvent(new Event("input", { bubbles: true }));
+});
 ["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther", "bkRadius"].forEach((id) => {
   const clear = () => { bk("e-" + id).textContent = ""; bk(id).removeAttribute("aria-invalid"); };
   bk(id).addEventListener("input", clear); bk(id).addEventListener("change", clear);
@@ -626,9 +625,13 @@ function validateBk() {
   const d = readDetails(), errs = {};
   if (d.name.length < 2) errs.bkName = "Please enter the patient's name.";
   else if (!NAME_OK.test(d.name)) errs.bkName = "Use letters only in the name.";
-  const age = Number(d.age);
-  if (!d.age || !(age >= 0 && age <= 120)) errs.bkAge = "Enter a valid age.";
-  if (!d.phone) errs.bkPhone = "Enter a valid Indian mobile number (10 digits, starting with 6, 7, 8 or 9).";
+  const rawAge = bk("bkAge").value.trim(), age = Number(rawAge);
+  if (!rawAge) errs.bkAge = "Please enter the age in numbers.";
+  else if (!/^\d{1,3}$/.test(rawAge)) errs.bkAge = "Age must be numbers only.";
+  else if (age < 7 || age > 109) errs.bkAge = "We can book online only for ages 7 to 109. Please call the lab on 8217654091 to book.";
+  const rawPhone = bk("bkPhone").value;
+  if (!/^\d{10}$/.test(rawPhone)) errs.bkPhone = "Phone number must be exactly 10 digits.";
+  else if (!d.phone) errs.bkPhone = "Enter a valid mobile number (starts with 6, 7, 8 or 9).";
   if (!bk("bkLandmark").value) errs.bkLandmark = "Please choose a landmark.";
   else if (!d.landmark) errs.bkOther = "Please type your landmark.";
   if (!d.gender) errs.bkGender = "Please select gender.";
@@ -789,13 +792,13 @@ function renderCart() {
   $("#ctTab2").classList.toggle("off", !cart.length);
   if (!cart.length && !$("#ctStep2").hidden) setStep(1);
   const go = $("#ctGo"), hint = $("#ctHint");
-  if (cart.length && waOk && allFull()) {
+  if (cart.length && allFull()) {
     go.setAttribute("aria-disabled", "true"); hint.hidden = false;
     hint.textContent = "😊 Slots are full right now. Please try the next day or call the lab.";
-  } else if (cart.length && waOk) { go.href = "#"; go.removeAttribute("aria-disabled"); hint.hidden = true; }
+  } else if (cart.length) { go.href = "#"; go.removeAttribute("aria-disabled"); hint.hidden = true; }
   else {
     go.removeAttribute("href"); go.setAttribute("aria-disabled", "true"); hint.hidden = false;
-    hint.textContent = !cart.length ? "Select at least one test or package to continue." : "WhatsApp is not set up yet. Please call the lab.";
+    hint.textContent = "Select at least one test or package to continue.";
   }
   flash = null;
 }
@@ -825,78 +828,83 @@ $("#ctCancel").addEventListener("click", () => {
   }
 });
 cartDlg.addEventListener("click", (e) => { if (e.target === cartDlg) cartDlg.close(); });
-/* After Book: WhatsApp must be SENT to finish. Three stages:
-   start = "One last step", back = asked when the visitor returns from WhatsApp, done = "Booking placed". */
-let doneTimer = null, doneState = null;
+/* After Book: the request is saved as PENDING and the popup lists every detail. The lab confirms on the patient's
+   WhatsApp number within 30 minutes. No booking ID is shown anywhere. */
 const doneDlg = $("#doneDialog");
-function setDoneStage(stage) {
-  const st = doneState; if (!st) return;
-  st.stage = stage;
-  const first = st.res.offline ? "Send the WhatsApp message to book your slot for " + st.when + "."
-    : (st.res.duplicate ? "You already have a slot for " + st.when + ". " : "Your slot for " + st.when + " is saved. ") + "Send us the WhatsApp message to confirm it.";
-  const open = $("#doneWa"), sent = $("#doneSent"), close = $("#doneClose");
-  $("#doneSteps").hidden = stage !== "start";
-  $("#doneWarn").hidden = stage === "done";
-  $("#doneAlt").hidden = stage === "done";
-  open.hidden = stage === "done"; sent.hidden = stage === "done"; close.hidden = stage !== "done";
-  doneDlg.classList.toggle("is-done", stage === "done");
-  if (stage === "start") {
-    $("#doneT").textContent = "One last step";
-    $("#doneMsg").textContent = first;
-    open.textContent = "Open WhatsApp"; sent.textContent = "I sent the message";
-  } else if (stage === "back") {
-    $("#doneT").textContent = "Did you press Send in WhatsApp?";
-    $("#doneMsg").textContent = "Your booking is complete only after we receive your message.";
-    open.textContent = "No, open WhatsApp again"; sent.textContent = "Yes, I sent it";
-  } else {
-    $("#doneT").textContent = "✅ Booking placed";
-    $("#doneMsg").textContent = "Thank you! We got your request for " + st.when + ". Our team will check it and confirm on WhatsApp soon." + (st.res.bookingNo ? " Your booking no. is " + st.res.bookingNo + "." : "") + " Please keep your phone with you.";
-  }
-}
-function openWhatsApp() {
-  if (!doneState) return;
-  doneState.opened = true; clearTimeout(doneTimer);
-  const url = doneState.wa.app;
-  if (IS_MOBILE) { location.href = url; return; }
-  const w = window.open(url, "_blank", "noopener");   // computer: new tab, so this page stays open
-  if (!w) location.href = url;
-}
-function showDone(res, wa, when) {
-  doneState = { res, wa, when, stage: "start", opened: false };
-  $("#doneWa").href = wa.app;
-  $("#doneWeb").href = wa.web;
-  setDoneStage("start");
+function showDone(res, info) {
+  const det = $("#doneDet"); det.replaceChildren();
+  [["Collection day", info.when], ["Patient", info.name + ", " + info.age + " yrs, " + info.gender], ["WhatsApp number", fmtPhone(info.phone)],
+   ["Doctor", info.doctor], ["Area", info.area], ["Landmark", info.landmark]].forEach(([k, v]) => { const d = h("div"); d.append(h("dt", "", k), h("dd", "", v)); det.append(d); });
+  const tests = h("div", "done-tests"), ul = h("ul");
+  info.tests.forEach((t) => ul.append(h("li", "", t)));
+  tests.append(h("dt", "", "Tests (" + info.tests.length + ")"), ul); det.append(tests);
+  $("#doneNumV").textContent = fmtPhone(info.phone);
+  const first = String(info.name || "").trim().split(/\s+/)[0];
+  $("#doneT").textContent = first ? "Thank you, " + first + "! Your booking request is received" : "Thank you! Your booking request is received";
+  doneDlg.classList.remove("play"); void doneDlg.offsetWidth;
   doneDlg.showModal();
-  clearTimeout(doneTimer);
-  doneTimer = setTimeout(openWhatsApp, 400);   // opens WhatsApp for them; the button is there if it does not
+  doneDlg.classList.add("play");
+  burstConfetti();
 }
-$("#doneWa").addEventListener("click", (e) => { e.preventDefault(); openWhatsApp(); });
-$("#doneWeb").addEventListener("click", () => { clearTimeout(doneTimer); if (doneState) doneState.opened = true; });
-$("#doneSent").addEventListener("click", () => { clearTimeout(doneTimer); setDoneStage("done"); wipeDoneLinks(); if (doneState) doneState.wa = { app: "#", web: "#" }; });
-/* Wipes every trace of the booking: list, form, undo copy, links that hold the patient's details */
+/* Small celebration: coloured pieces fall from the top of the success popup */
+function burstConfetti() {
+  const box = $("#confetti"); if (!box) return;
+  box.replaceChildren();
+  if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const cols = ["#1F9D74", "#E8C547", "#0E3A31", "#2FC592", "#F3DC85"];
+  for (let i = 0; i < 26; i++) {
+    const c = document.createElement("i");
+    c.style.left = (4 + Math.random() * 92) + "%";
+    c.style.background = cols[i % cols.length];
+    c.style.setProperty("--dx", (Math.random() * 90 - 45) + "px");
+    c.style.setProperty("--rot", (Math.random() * 720 - 360) + "deg");
+    c.style.animationDelay = (Math.random() * 0.35) + "s";
+    c.style.animationDuration = (1.4 + Math.random() * 1.1) + "s";
+    if (i % 3 === 0) c.style.borderRadius = "50%";
+    box.append(c);
+  }
+  setTimeout(() => box.replaceChildren(), 3200);
+}
+/* Booking-in-progress animation: a sample tube fills while the request is sent */
+const bkProg = { el: null, timers: [] };
+function showBookingProgress() {
+  const el = bkProg.el = $("#bkProg");
+  el.hidden = false; el.classList.remove("done"); void el.offsetWidth; el.classList.add("on");
+  $$("#bkProg .bkp-steps li").forEach((li) => li.classList.remove("on", "ok"));
+  $("#bkProg .bkp-steps li").classList.add("on");
+  $("#bkProg .bkp-bar i").style.width = "8%";
+  $("#bkpNote").textContent = "Please wait a moment. Do not close this page.";
+  const lis = $$("#bkProg .bkp-steps li"), bar = $("#bkProg .bkp-bar i"), liq = $("#bkProg .bkp-liq");
+  liq.style.transform = "translateY(112px)";
+  const go = (i, pct, level) => { lis.forEach((li, k) => { li.classList.toggle("ok", k < i); li.classList.toggle("on", k === i); }); bar.style.width = pct + "%"; liq.style.transform = "translateY(" + level + "px)"; };
+  bkProg.timers = [
+    setTimeout(() => go(0, 22, 84), 60),
+    setTimeout(() => go(1, 55, 56), 1100),
+    setTimeout(() => go(2, 82, 30), 2200),
+    setTimeout(() => { $("#bkpNote").textContent = "Almost there. The network is a little slow, please keep this page open."; }, 9000)
+  ];
+}
+function finishBookingProgress(ok) {
+  bkProg.timers.forEach(clearTimeout); bkProg.timers = [];
+  const el = bkProg.el; if (!el) return Promise.resolve();
+  if (!ok) { el.classList.remove("on"); el.hidden = true; return Promise.resolve(); }
+  $$("#bkProg .bkp-steps li").forEach((li) => { li.classList.remove("on"); li.classList.add("ok"); });
+  $("#bkProg .bkp-bar i").style.width = "100%";
+  $("#bkProg .bkp-liq").style.transform = "translateY(8px)";
+  $("#bkpT").textContent = "Request sent!";
+  el.classList.add("done");
+  return new Promise((r) => setTimeout(() => { el.classList.remove("on", "done"); el.hidden = true; $("#bkpT").textContent = "Booking your home collection"; r(); }, 800));
+}
+/* Wipes every trace of the booking: list, form, undo copy */
 function wipeBooking() {
   cart = []; offerNote = ""; undoCart = null;
   try { localStorage.removeItem(CART_KEY); localStorage.removeItem(DETAIL_KEY); } catch (e) {}
   clearBkForm();
   renderCart();
 }
-function wipeDoneLinks() {
-  const a = $("#doneWa"), w = $("#doneWeb");
-  if (a) a.setAttribute("href", "#"); if (w) w.setAttribute("href", "#");
-}
-function closeDone() {
-  clearTimeout(doneTimer);
-  const st = doneState; doneDlg.close();
-  if (st && st.stage !== "done") toast("Your booking is not complete yet. Send the WhatsApp message to finish.", "Open WhatsApp", st.wa.app);
-  else wipeDoneLinks();   // booking finished: the WhatsApp text (name, phone, address) must not stay on the page
-  doneState = null;
-}
+function closeDone() { doneDlg.close(); $("#doneDet").replaceChildren(); }   // patient details do not stay on the page
 $("#doneClose").addEventListener("click", closeDone);
 doneDlg.addEventListener("cancel", (e) => { e.preventDefault(); closeDone(); });
-/* Coming back from WhatsApp: ask if they pressed Send */
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && doneDlg.open && doneState && doneState.opened && doneState.stage === "start") setDoneStage("back");
-});
 $("#ctGo").addEventListener("click", async (e) => {
   e.preventDefault();
   const go = e.currentTarget;
@@ -904,26 +912,33 @@ $("#ctGo").addEventListener("click", async (e) => {
   const d = validateBk();
   if (!d) return;
   if (TURNSTILE_SITE_KEY && !tsToken) { const h = $("#ctHint"); h.hidden = false; h.textContent = "Please wait for the security check to finish, then tap Book again."; setupTurnstile(); return; }
-  go.dataset.busy = "1"; go.setAttribute("aria-disabled", "true");
+  go.dataset.busy = "1"; go.setAttribute("aria-disabled", "true"); go.classList.add("loading");
   const label = go.textContent; go.textContent = "Booking…";
+  const hint0 = $("#ctHint"); hint0.textContent = "";
+  showBookingProgress();
+  const minShow = new Promise((r) => setTimeout(r, 2400));   // the animation always plays long enough to be seen
   let res = await submitBooking(d);
-  delete go.dataset.busy; go.textContent = label; go.removeAttribute("aria-disabled");
+  await minShow;
+  delete go.dataset.busy; go.textContent = label; go.removeAttribute("aria-disabled"); go.classList.remove("loading");
   resetTurnstile();
   /* Only "closed" and "full" stop a booking. Any other server problem (busy, slow, error): do NOT lose the patient,
      still open WhatsApp so the lab receives the request. */
-  if (res && res.ok === false && !res.closed && !res.full) res = { ok: true, offline: true, fallback: true };
+  if (res && res.ok === false && !res.closed && !res.full) res = { ok: false, error: res.error, network: res.network };
+  if (res && res.ok && res.offline) res = { ok: false, error: "booking system not connected" };   // without the saved request the lab would never know
   if (!res || res.ok === false) {
     const hint = $("#ctHint"); hint.hidden = false;
-    hint.textContent = res && res.closed ? dayMsg(0, true) : res && res.full ? dayMsg(+bk("bkDay").value, false) : (res && res.network ? "Could not reach the booking system. Check your internet and try again, or call the lab." : "Could not book right now" + (res && res.error ? " (" + String(res.error).slice(0, 60) + ")" : "") + ". Please try again or call the lab.");
+    hint.textContent = res && res.closed ? dayMsg(0, true) : res && res.full ? dayMsg(+bk("bkDay").value, false) : (res && res.network ? "We could not reach the booking system. Please check your internet and try again, or call the lab on 8217654091." : "We could not complete your booking just now. Please try again, or call the lab on 8217654091.");
+    await finishBookingProgress(false);
     refreshSlots();
     return;
   }
-  const o = +bk("bkDay").value, when = (o ? "tomorrow" : "today") + ", " + dayLabel(o);
-  const msg = cartMessage(res.bookingNo), wa = { app: IS_MOBILE ? waApp(msg) : waLink(msg), web: waLink(msg) };
+  await finishBookingProgress(true);
+  const o = +bk("bkDay").value, when = (o ? "Tomorrow" : "Today") + ", " + dayLabel(o);
+  const info = { when, name: d.name, age: d.age, gender: d.gender, phone: d.phone, doctor: d.doctor, area: d.area, landmark: d.landmark, tests: cartLines() };
   cartDlg.close();
   wipeBooking(); bump();
   slotsAt = 0; refreshSlots(true);   // the slot count has changed
-  showDone(res, wa, when);
+  showDone(res, info);
 });
 ["#ctBrowse", "#ctMore"].forEach((q) => $(q).addEventListener("click", () => { cartDlg.close(); openCatalogue(); }));
 $("#cartBtn").addEventListener("click", () => openCart());
@@ -1561,7 +1576,7 @@ renderCatalogue();
       target: () => visible("#heroSearch") },
     { t: "2. Open My Tests", p: "Tap here to see the tests you picked.",
       target: () => visible(".tabbar .tb-book") || visible("#cartBtn"), near: true },
-    { t: "3. Book your slot", p: "Pick today or tomorrow, fill your details and tap Book. WhatsApp opens. Press Send to finish.",
+    { t: "3. Book your slot", p: "Pick today or tomorrow, fill your details and tap Book. Your booking is pending until the lab confirms it on WhatsApp within 30 minutes.",
       target: () => null }
   ];
 
