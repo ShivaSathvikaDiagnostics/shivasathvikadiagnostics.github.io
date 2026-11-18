@@ -1028,7 +1028,7 @@ PACKAGES.forEach((p, i) => {
 /* Search: every word typed must appear in the test name, category or plain description,
    so "sugar", "thyroid" or "fever" also find the right tests. Name matches come first. */
 function testRank(t, words) {
-  const name = t.name.toLowerCase(), all = (name + " " + t.cat + " " + t.desc).toLowerCase();
+  const name = t.name.toLowerCase(), pl = CAT_INFO[t.catKey] ? CAT_INFO[t.catKey].plain : "", all = (name + " " + t.cat + " " + pl + " " + t.desc).toLowerCase();
   if (!words.every((w) => all.includes(w))) return -1;
   if (name.startsWith(words[0])) return 0;
   return words.every((w) => name.includes(w)) ? 1 : 2;
@@ -1043,11 +1043,25 @@ function searchTests(q) {
 /* Catalogue: category tiles, then a compact list. Search looks through every test. */
 const state = { cat: null, q: "", more: false };
 const tilesEl = $("#tiles"), headEl = $("#catHead");
+/* Plain-language names for each lab section, so nobody needs to know words like "Haematology" */
+const CAT_INFO = {
+  H: { e: "🩸", plain: "Blood Count & Anaemia", what: "Looks at your blood cells. Shows tiredness from low haemoglobin, infections, and low platelets in dengue." },
+  B: { e: "🍬", plain: "Sugar, Kidney & Body Chemistry", what: "Measures sugar, kidney health, uric acid and body salts in your blood." },
+  L: { e: "❤️", plain: "Cholesterol & Heart Fats", what: "Checks the fats in your blood that affect your heart." },
+  V: { e: "🌿", plain: "Liver Health", what: "Shows how well your liver works. Used for jaundice, fatty liver and before some medicines." },
+  O: { e: "🦋", plain: "Thyroid & Hormones", what: "Checks thyroid and other hormones, and the pregnancy test." },
+  R: { e: "🛡️", plain: "Fever & Infection Antibody Tests", what: "Looks for signs your body is fighting typhoid, dengue, hepatitis, HIV, arthritis and more." },
+  M: { e: "🦠", plain: "Germ Culture & Antibiotic Test", what: "Grows germs from urine, pus, throat or blood to find the infection and the antibiotic that works." },
+  U: { e: "💧", plain: "Urine Tests", what: "Checks urine for infection, sugar, protein and kidney problems." },
+  S: { e: "🧫", plain: "Stool Tests", what: "Finds stomach infections, worms and hidden blood." }
+};
 Object.entries(CATS).forEach(([key, label]) => {
   const list = TESTS.filter((t) => t.catKey === key);
+  const info = CAT_INFO[key] || { e: key, plain: label, what: "" };
   const b = h("button", "tile");
   b.type = "button"; b.dataset.cat = key;
-  b.append(h("span", "ico", key), h("b", "", label), h("span", "tile-n", list.length + " tests"));
+  b.setAttribute("aria-label", info.plain + " (" + label + "), " + list.length + " tests");
+  b.append(h("span", "ico", info.e), h("b", "", info.plain), h("span", "tile-lab", "Lab name: " + label), h("span", "tile-what", info.what), h("span", "tile-n", list.length + " tests"));
   b.addEventListener("click", () => { setCat(key); $("#tests").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" }); });
   tilesEl.append(b);
 });
@@ -1066,7 +1080,9 @@ function renderCatalogue() {
   if (!tilesEl.hidden) { count.textContent = TESTS.length + " tests in " + Object.keys(CATS).length + " categories"; return; }
   const list = (q ? searchTests(q) : TESTS).filter((t) => q || !state.cat || t.catKey === state.cat);
   if (!headEl.hidden) {
-    headEl.append(btn("‹ All categories", "btn btn-o back-btn", () => setCat("all")), h("strong", "", CATS[state.cat]));
+    const ci = CAT_INFO[state.cat];
+    headEl.append(btn("‹ All categories", "btn btn-o back-btn", () => setCat("all")), h("strong", "", ci ? ci.e + " " + ci.plain : CATS[state.cat]));
+    if (ci) headEl.append(h("p", "cat-what", ci.what + " (Lab name: " + CATS[state.cat] + ")"));
   }
   count.textContent = list.length + (list.length === 1 ? " test" : " tests") + (q ? " found" : "");
   out.style.animation = "none"; void out.offsetWidth; out.style.animation = "";
@@ -1089,6 +1105,59 @@ function renderCatalogue() {
 }
 $("#q").addEventListener("input", (e) => { state.q = e.target.value; state.more = false; renderCatalogue(); });
 renderCatalogue();
+
+/* "What do you need?" picker: people choose a worry in plain words and see the right tests, no medical terms needed */
+const NEEDS = [
+  { e: "🌡️", t: "Fever / feeling unwell", why: "Doctors usually start with these to find the cause of a fever, body pain or weakness.", pkg: null, tests: ["CBC", "ESR", "CRP", "Widal", "Dengue NS1, IgM, IgG", "Malarial Parasites"] },
+  { e: "🍬", t: "Sugar / Diabetes", why: "Shows your sugar level now and over the last 3 months, and whether sugar has touched your kidneys.", pkg: "Diabetes Care", tests: ["FBS (Fasting Blood Sugar)", "PPBS (Post-Prandial Blood Sugar)", "Glycosylated Hb (HbA1c)"] },
+  { e: "🦋", t: "Thyroid", why: "Checks if your thyroid is underactive or overactive. Used for weight change, tiredness, hair fall and periods.", pkg: "Thyroid Profile", tests: ["T3, T4, TSH"] },
+  { e: "❤️", t: "Heart & Cholesterol", why: "Shows the fats in your blood that can block the heart, plus heart muscle markers.", pkg: "Heart Health", tests: ["Lipid Profile", "CRP"] },
+  { e: "🌿", t: "Liver / Jaundice", why: "Shows how your liver is working, and the yellow colour (bilirubin) in jaundice.", pkg: null, tests: ["Liver Function Test (LFT)", "T. Bilirubin", "D. Bilirubin", "SGPT"] },
+  { e: "🫘", t: "Kidney / Uric acid", why: "Shows if your kidneys are cleaning the blood well. Uric acid is linked to joint pain and stones.", pkg: null, tests: ["RFT (Renal Function Test)", "Urea", "S. Creatinine", "Uric Acid", "Urine Albumin"] },
+  { e: "🩸", t: "Weakness / Anaemia", why: "Checks haemoglobin (the red part of blood that carries oxygen). Low levels cause tiredness and paleness.", pkg: null, tests: ["CBC", "HB%", "Peripheral Smear", "ESR"] },
+  { e: "🧪", t: "Full body checkup", why: "Not sure what you need? A ready group of common tests, picked by age and need.", pkg: "Full Body Checkup", more: ["Basic Health Check", "Senior Citizen", "Women's Wellness"], tests: [] },
+  { e: "🤰", t: "Pregnancy", why: "Confirms pregnancy and covers the usual early checks for mother and baby.", pkg: null, tests: ["Pregnancy Test", "B-HCG", "Blood Group & Rh", "CBC", "GTT (Glucose Tolerance Test)"] },
+  { e: "💧", t: "Urine burning / infection", why: "Finds urine infection and the right antibiotic, and checks for sugar or protein in urine.", pkg: null, tests: ["Urine Microscopy", "Urine (Microbiology)", "Urine Sugar", "Urine Albumin"] }
+];
+(function needPicker() {
+  const box = $("#need"); if (!box) return;
+  box.append(h("p", "need-q", "Not sure which test? Tap what you need:"));
+  const row = h("div", "need-row"), panel = h("div", "need-panel"); panel.hidden = true; panel.setAttribute("aria-live", "polite");
+  const find = (name) => TEST_MAP.get(slug(name));
+  const pkgOf = (name) => PACKAGES.find((p) => p.name === name);
+  let openIdx = -1;
+  function show(i) {
+    const n = NEEDS[i];
+    $$("button", row).forEach((b, k) => b.setAttribute("aria-pressed", String(k === i)));
+    panel.replaceChildren();
+    panel.append(h("h3", "", n.e + " " + n.t), h("p", "need-why", n.why));
+    [n.pkg].concat(n.more || []).filter(Boolean).forEach((name, k) => {
+      const p = pkgOf(name); if (!p) return;
+      const r = h("div", "need-item need-pkg"), d = h("div", "need-name");
+      d.append(h("b", "", (k === 0 ? "Best ready group: " : "") + p.name), h("span", "", p.desc + " Includes " + p.tests.length + " tests."));
+      r.append(d, addBtn(p.id, "btn btn-p rb")); panel.append(r);
+    });
+    const tests = n.tests.map(find).filter(Boolean);
+    if (tests.length) panel.append(h("p", "need-sub", n.pkg ? "Or pick single tests:" : "Tests usually done for this:"));
+    tests.forEach((t) => {
+      const r = h("div", "need-item"), d = h("div", "need-name");
+      d.append(btn(t.name, "link-btn", () => openDetail(t.id), "What is " + t.name + "?"), h("span", "", t.desc));
+      r.append(d, addBtn(t.id, "btn btn-o rb")); panel.append(r);
+    });
+    panel.append(h("p", "small need-note", "These are common tests, not a diagnosis. Your doctor decides what you need. Tap a test name to read what it checks."));
+    panel.hidden = false; openIdx = i;
+  }
+  NEEDS.forEach((n, i) => {
+    const b = h("button", "need-chip"); b.type = "button"; b.setAttribute("aria-pressed", "false");
+    b.append(h("span", "", n.e), h("b", "", n.t));
+    b.addEventListener("click", () => {
+      if (openIdx === i) { panel.hidden = true; openIdx = -1; b.setAttribute("aria-pressed", "false"); return; }
+      show(i); if (IS_MOBILE) panel.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+    });
+    row.append(b);
+  });
+  box.append(row, panel);
+})();
 /* Open the catalogue dropdown and jump to it, optionally with a search term */
 function openCatalogue(term) {
   if (term != null) { $("#q").value = term; state.q = term; setCat("all"); }
