@@ -155,7 +155,7 @@ const FAQ_GROUPS = [
     ["How do I book?", "Tap the test tube icon (My Tests), choose today or tomorrow, fill in the patient's details and tap Book Home Collection. A popup shows all your details. Your booking stays pending until our lab sends you a confirmation on WhatsApp within 30 minutes."],
     ["Do I need to create an account?", "No. You do not need to sign up or log in."],
     ["Is my personal information safe?", "Your details are used only to book your home collection. They are not saved in your browser, and the form is cleared after you book."],
-    ["Can I just walk in without booking?", "Yes. You can walk in during working hours (Monday to Saturday, 7:00 AM to 8:30 PM). Use Get Directions in the Contact section to find us, behind Sadhur Matt."],
+    ["Can I just walk in without booking?", "Yes. You can walk in during working hours (Monday to Saturday, 7:00 AM to 8:30 PM). Use Get Directions in the Contact section to find us, behind Sadhu Matt."],
     ["How do I get my reports?", "Your reports are sent to you online, so you do not need to come back to the lab."]
   ]},
   { id:"tests", label:"Tests", items:[
@@ -167,7 +167,7 @@ const FAQ_GROUPS = [
     ["Will the test details here replace my doctor's advice?", "No. The descriptions are general information to help you understand each test. Your doctor will explain what your result means for you."]
   ]},
   { id:"home", label:"Home Collection", items:[
-    ["Is home sample collection available at my address?", "Yes, if your address is within 5 km of the lab (Behind Sadhur Matt, Chikkaballapur). The booking form asks you to confirm this. If you live further away, please call the lab."],
+    ["Is home sample collection available at my address?", "Yes, if your address is within 5 km of the lab (Behind Sadhu Matt, Chikkaballapur). The booking form asks you to confirm this. If you live further away, please call the lab."],
     ["How many bookings are taken each day?", "Slots are limited each day. You can book for today until 4 PM. If today is full, book for tomorrow, which is open at any time."],
     ["When will the team reach my home?", "After you tap Book, our lab checks your request and sends you a confirmation on the WhatsApp number you entered within 30 minutes. Until then your booking is pending. Please keep your phone with you."],
     ["How should I prepare at home?", "If your test needs fasting, follow the instructions shown for it. Stay at the address you gave and keep your phone switched on."],
