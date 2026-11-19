@@ -1,7 +1,7 @@
 "use strict";
 
 /* Clickjacking guard: a meta CSP cannot stop framing, so a framed copy of the site hides itself */
-try { if (window.top !== window.self) { document.documentElement.style.display = "none"; window.top.location = window.self.location; } } catch (e) { document.documentElement.style.display = "none"; }
+try { if (window.top !== window.self) { document.documentElement.style.display = "none"; try { window.top.location = window.self.location; } catch (e2) {} } } catch (e) { document.documentElement.style.display = "none"; }
 
 /* Old iPhones (before iOS 15.4) have no <dialog>.showModal(): add a simple fallback so booking still works */
 (function dialogFallback() {
@@ -22,7 +22,7 @@ try { if (window.top !== window.self) { document.documentElement.style.display =
 const BUSINESS_INFO = {
   name: "Shiva Sathvika Diagnostic Lab & X-ray Imaging",
   location: "Chikkaballapur, Karnataka, India",
-  hours: "Monday–Saturday, 7:00 AM–8:30 PM",
+  hours: "Monday–Saturday, 7:00 AM–8:30 PM; Sunday, 7:00 AM–2:30 PM",
   openFrom: "07:00",
   openTo: "20:30"
 };
@@ -155,7 +155,7 @@ const FAQ_GROUPS = [
     ["How do I book?", "Tap the test tube icon (My Tests), choose today or tomorrow, fill in the patient's details and tap Book Home Collection. A popup shows all your details. Your booking stays pending until our lab sends you a confirmation on WhatsApp within 30 minutes."],
     ["Do I need to create an account?", "No. You do not need to sign up or log in."],
     ["Is my personal information safe?", "Your details are used only to book your home collection. They are not saved in your browser, and the form is cleared after you book."],
-    ["Can I just walk in without booking?", "Yes. You can walk in during working hours (Monday to Saturday, 7:00 AM to 8:30 PM). Use Get Directions in the Contact section to find us, behind Sadhu Matt."],
+    ["Can I just walk in without booking?", "Yes. You can walk in during working hours (Monday to Saturday, 7:00 AM to 8:30 PM, and Sunday, 7:00 AM to 2:30 PM). Use Get Directions in the Contact section to find us, behind Sadhu Matt."],
     ["How do I get my reports?", "Your reports are sent to you online, so you do not need to come back to the lab."]
   ]},
   { id:"tests", label:"Tests", items:[
@@ -548,7 +548,9 @@ function buildDayOptions() {
   const av = $("#slotAvail");
   if (av) {
     const t0 = opts[0] && !opts[0].disabled;
-    av.innerHTML = t0 ? "<b>Slots available today.</b> You can also book for tomorrow." : (pick ? "<b>Today's slots are full.</b> Please book for tomorrow." : "<b>All slots are full right now.</b> Please call the lab.");
+    const msg = t0 ? ["Slots available today.", " You can also book for tomorrow."] : (pick ? ["Today's slots are full.", " Please book for tomorrow."] : ["All slots are full right now.", " Please call the lab."]);
+    const bold = document.createElement("b"); bold.textContent = msg[0];
+    av.replaceChildren(bold, document.createTextNode(msg[1]));
   }
 }
 function setSlotStatus(t) { const e = $("#slotStatus"); if (e) { e.textContent = t; e.hidden = !t; } }
@@ -1041,7 +1043,7 @@ function searchTests(q) {
 }
 
 /* Catalogue: category tiles, then a compact list. Search looks through every test. */
-const state = { cat: null, q: "", more: false };
+const state = { cats: new Set(), q: "", more: false };   // several groups can be open at the same time
 const tilesEl = $("#tiles"), headEl = $("#catHead");
 /* Plain-language names for each lab section, so nobody needs to know words like "Haematology" */
 const CAT_INFO = {
@@ -1066,7 +1068,13 @@ Object.entries(CATS).forEach(([key, label]) => {
   tilesEl.append(b);
 });
 function setCat(key) {
-  state.cat = key === "all" ? null : key;
+  state.cats = key === "all" ? new Set() : new Set([key]);
+  state.more = false;
+  renderCatalogue();
+}
+/* Add or remove one group from the open groups (the chips above the list) */
+function toggleCat(key) {
+  if (state.cats.has(key)) state.cats.delete(key); else state.cats.add(key);
   state.more = false;
   renderCatalogue();
 }
@@ -1075,14 +1083,23 @@ function renderCatalogue() {
   const limit = matchMedia("(max-width:640px)").matches ? 8 : 12;
   const out = $("#results"), count = $("#count");
   out.replaceChildren(); headEl.replaceChildren();
-  tilesEl.hidden = !!(q || state.cat);
-  headEl.hidden = !(state.cat && !q);
+  const many = state.cats.size > 1;
+  tilesEl.hidden = !!(q || state.cats.size);
+  headEl.hidden = !(state.cats.size && !q);
   if (!tilesEl.hidden) { count.textContent = TESTS.length + " tests in " + Object.keys(CATS).length + " categories"; return; }
-  const list = (q ? searchTests(q) : TESTS).filter((t) => q || !state.cat || t.catKey === state.cat);
+  const list = (q ? searchTests(q) : TESTS).filter((t) => q || !state.cats.size || state.cats.has(t.catKey));
   if (!headEl.hidden) {
-    const ci = CAT_INFO[state.cat];
-    headEl.append(btn("‹ All categories", "btn btn-o back-btn", () => setCat("all")), h("strong", "", ci ? ci.e + " " + ci.plain : CATS[state.cat]));
-    if (ci) headEl.append(h("p", "cat-what", ci.what + " (Lab name: " + CATS[state.cat] + ")"));
+    headEl.append(btn("‹ All categories", "btn btn-o back-btn", () => setCat("all")));
+    const chips = h("div", "cat-chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Choose one or more groups");
+    Object.keys(CATS).forEach((k) => {
+      const ci = CAT_INFO[k] || { e: k, plain: CATS[k] }, on = state.cats.has(k);
+      const c = btn((on ? "✓ " : "") + ci.e + " " + ci.plain, "cat-chip" + (on ? " on" : ""), () => toggleCat(k));
+      c.setAttribute("aria-pressed", String(on));
+      chips.append(c);
+    });
+    headEl.append(chips);
+    if (!many) { const k = [...state.cats][0], ci = CAT_INFO[k]; if (ci) headEl.append(h("p", "cat-what", ci.what + " (Lab name: " + CATS[k] + ")")); }
+    else headEl.append(h("p", "cat-what", "Showing " + state.cats.size + " groups together. Tap a group above to add or remove it."));
   }
   count.textContent = list.length + (list.length === 1 ? " test" : " tests") + (q ? " found" : "");
   out.style.animation = "none"; void out.offsetWidth; out.style.animation = "";
@@ -1095,7 +1112,7 @@ function renderCatalogue() {
     const name = h("div", "name");
     name.append(btn(t.name, "link-btn", () => openDetail(t.id), "View details for " + t.name));
     name.append(h("span", "row-desc", t.desc));
-    if (q) name.append(h("span", "tag", t.cat));
+    if (q || many) name.append(h("span", "tag", t.cat));
     r.append(name, addBtn(t.id, "btn btn-o rb"));
     out.append(r);
   });
@@ -1614,12 +1631,16 @@ renderCatalogue();
 })();
 
 
-/* ===== How-to-book popup ===== */
+
+
+/* ===== How-to-book video popup ===== */
 (function howTo() {
-  const dlg = $("#howDialog");
-  $("#howFab").addEventListener("click", () => dlg.showModal());
+  const dlg = $("#howDialog"), vid = $("#howVid");
+  const stop = () => { try { vid.pause(); } catch (e) {} };
+  $("#howBtn").addEventListener("click", () => { dlg.showModal(); try { vid.currentTime = 0; const p = vid.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} });
   $("#howClose").addEventListener("click", () => dlg.close());
-  $("#howGo").addEventListener("click", () => { dlg.close(); openCatalogue(); });
+  $("#howGo").addEventListener("click", () => { dlg.close(); openCart(); });
+  dlg.addEventListener("close", stop);
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
 })();
 
