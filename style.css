@@ -1985,3 +1985,5 @@ html:has(dialog[open]){overflow:hidden}
 .cat-chip:hover{border-color:var(--teal)}
 .cat-chip.on{background:var(--teal);border-color:var(--teal);color:#fff}
 .cat-head .cat-what{flex-basis:100%;margin:0}
+
+.how-fail{margin:8px 0 0;padding:10px 12px;border-radius:12px;background:#FFF3C4;color:#6B4E00;font-size:.9rem}

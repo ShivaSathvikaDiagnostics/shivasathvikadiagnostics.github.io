@@ -1635,9 +1635,24 @@ renderCatalogue();
 
 /* ===== How-to-book video popup ===== */
 (function howTo() {
-  const dlg = $("#howDialog"), vid = $("#howVid");
+  const dlg = $("#howDialog"), vid = $("#howVid"), box = vid.parentElement;
+  let note = null;
   const stop = () => { try { vid.pause(); } catch (e) {} };
-  $("#howBtn").addEventListener("click", () => { dlg.showModal(); try { vid.currentTime = 0; const p = vid.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} });
+  const clearNote = () => { if (note) { note.remove(); note = null; } };
+  /* If no video format could be loaded, say so instead of showing a dead player */
+  vid.addEventListener("error", () => {
+    if (vid.networkState !== 3 || note) return;                       // 3 = no usable source
+    note = h("p", "how-fail", "The video could not load. Please check your internet and try again, or follow the four steps below.");
+    box.after(note);
+  }, true);
+  $("#howBtn").addEventListener("click", () => {
+    dlg.showModal();
+    try {
+      if (note || vid.error || vid.networkState === 3) { clearNote(); vid.load(); }   // try again from scratch
+      else if (vid.readyState > 0) vid.currentTime = 0;
+      const p = vid.play(); if (p && p.catch) p.catch(() => {});      // if the browser refuses, the player controls are there
+    } catch (e) {}
+  });
   $("#howClose").addEventListener("click", () => dlg.close());
   $("#howGo").addEventListener("click", () => { dlg.close(); openCart(); });
   dlg.addEventListener("close", stop);
