@@ -451,7 +451,7 @@ const AREAS = [...new Set(Object.values(LANDMARK_AREAS).flat())].sort((x, y) => 
 /* ---- Google Sheets booking + 50 slots per day ----
    Paste the Web app URL of your Google Apps Script here (see SETUP-GOOGLE-SHEET.md).
    Leave empty to book on WhatsApp only (no slot counting). */
-const BOOKING_API_URL = "https://script.google.com/macros/s/AKfycbyG-pmN4C4GTtt7XSPjm2EpyHtpupz4zDbJReys89k57tw0x7rnnPk-clGEaYpy50Zz/exec";   // MUST look like https://script.google.com/macros/s/AKfy.../exec  (NOT a /macros/library/ link)
+const BOOKING_API_URL = "https://script.google.com/macros/s/AKfycbzZ4o-VgT197_sXznDjs1w6-RaVSUStVLdVOI7hwjNub74RE9BDVZcGBmHLqJVPKLiT/exec";   // MUST look like https://script.google.com/macros/s/AKfy.../exec  (NOT a /macros/library/ link)
 /* Spam protection (Cloudflare Turnstile, free). Paste your SITE key here to turn it on.
    Leave empty to keep it off. The SECRET key goes in Apps Script, never here (see SETUP-GOOGLE-SHEET.md). */
 const BOOKING_API = /^https:\/\/script\.google\.com\//.test(BOOKING_API_URL) ? BOOKING_API_URL : "";   // not set up yet = WhatsApp only, no errors shown
@@ -475,7 +475,7 @@ function resetTurnstile() { tsToken = ""; if (tsWidget !== null && window.turnst
 function buildAreaOptions() {
   const as = bk("bkArea"), keep = as.value, lm = bk("bkLandmark").value;
   as.textContent = "";
-  if (!lm) { as.append(new Option("Select landmark first", "")); bk("bkAreaOtherWrap").hidden = true; return; }
+  if (!lm) { as.append(new Option("Select landmark first", "")); bk("bkAreaOtherWrap").hidden = true; as.closest(".field").hidden = true; return; }
   const list = LANDMARK_AREAS[lm] || AREAS;
   as.append(new Option("Select your area", ""));
   list.forEach((x) => as.append(new Option(x, x)));
@@ -483,6 +483,7 @@ function buildAreaOptions() {
   if (keep && [...as.options].some((o) => o.value === keep)) as.value = keep;
   else if (list.length === 1) as.value = list[0];
   bk("bkAreaOtherWrap").hidden = as.value !== "Other";
+  bk("bkArea").closest(".field").hidden = list.length === 1 && lm !== "Other";
 }
 function clearBkForm() {
   const f = $("#bkForm"); if (f) f.reset();   // the doctor box goes back to "Self"
@@ -490,6 +491,9 @@ function clearBkForm() {
   bk("bkAreaOtherWrap").hidden = true;
   buildAreaOptions();
   buildDayOptions();
+  syncGender();
+  const dw = $("#bkDoctorWrap"); if (dw) { dw.hidden = true; $("#docToggle").hidden = false; $("#docToggle").setAttribute("aria-expanded", "false"); }
+  $$("#bkForm .field.ok").forEach((x) => x.classList.remove("ok"));
 }
 /* Phone or tablet (used for the search box only) */
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform));
@@ -545,13 +549,27 @@ function buildDayOptions() {
   });
   const opts = Array.from(sel.options), pick = opts.find((x) => !x.disabled && x.value === keep) || opts.find((x) => !x.disabled);
   if (pick) sel.value = pick.value;
+  buildDayCards();
   const av = $("#slotAvail");
   if (av) {
+    av.hidden = !!pick;   // the Today / Tomorrow cards already show availability
     const t0 = opts[0] && !opts[0].disabled;
     const msg = t0 ? ["Slots available today.", " You can also book for tomorrow."] : (pick ? ["Today's slots are full.", " Please book for tomorrow."] : ["All slots are full right now.", " Please call the lab."]);
     const bold = document.createElement("b"); bold.textContent = msg[0];
     av.replaceChildren(bold, document.createTextNode(msg[1]));
   }
+}
+function buildDayCards() {
+  const sel = bk("bkDay"), box = $("#dayCards"); if (!box) return;
+  box.replaceChildren();
+  [...sel.options].forEach((op) => {
+    const m = /^(\w+) \(([^)]+)\)(?: - (.*))?$/.exec(op.text) || [], on = op.value === sel.value;
+    const c = h("button", "daycard"); c.type = "button"; c.disabled = op.disabled;
+    c.setAttribute("role", "radio"); c.setAttribute("aria-checked", String(on));
+    c.append(h("b", "", m[1] || op.text), h("span", "", (m[2] || "") + (m[3] ? " · " + m[3].replace("Slots available", "Slots open") : "")));
+    c.addEventListener("click", () => { sel.value = op.value; sel.dispatchEvent(new Event("change", { bubbles: true })); buildDayCards(); });
+    box.append(c);
+  });
 }
 function setSlotStatus(t) { const e = $("#slotStatus"); if (e) { e.textContent = t; e.hidden = !t; } }
 let slotsBusy = false, slotsAt = 0;
@@ -623,6 +641,38 @@ bk("bkPhone").addEventListener("paste", (e) => {   // "+91 98765 43210" pasted b
   const clear = () => { bk("e-" + id).textContent = ""; bk(id).removeAttribute("aria-invalid"); };
   bk(id).addEventListener("input", clear); bk(id).addEventListener("change", clear);
 });
+/* ---- Phone-friendly form helpers: gender buttons, optional doctor, instant field checks, quick test picks ---- */
+function syncGender() { $$("#genderSeg button").forEach((b) => { const on = b.dataset.v === bk("bkGender").value; b.setAttribute("aria-checked", String(on)); b.classList.toggle("on", on); }); }
+(function initPhoneForm() {
+  ["Male", "Female", "Other"].forEach((v) => {
+    const b = h("button", "", v); b.type = "button"; b.dataset.v = v; b.setAttribute("role", "radio");
+    b.addEventListener("click", () => { bk("bkGender").value = v; bk("bkGender").dispatchEvent(new Event("change", { bubbles: true })); syncGender(); });
+    $("#genderSeg").append(b);
+  });
+  cartDlg.addEventListener("focusin", () => requestAnimationFrame(() => { cartDlg.scrollTop = 0; }));   // keeps the sheet header from sliding off when the keyboard opens
+  syncGender();
+  $("#docToggle").addEventListener("click", (e) => { e.currentTarget.hidden = true; e.currentTarget.setAttribute("aria-expanded", "true"); $("#bkDoctorWrap").hidden = false; bk("bkDoctor").focus(); });
+  const liveCheck = (id) => {
+    const v = bk(id).value.trim(); if (!v) return; let m = "";
+    if (id === "bkName") { if (v.length < 2 || !NAME_OK.test(v)) m = "Use letters only in the name."; }
+    else if (id === "bkAge") { const a = Number(v); if (!/^\d{1,3}$/.test(v)) m = "Age must be numbers only."; else if (a < 7 || a > 109) m = "We can book online only for ages 7 to 109. Please call the lab on 8217654091 to book."; }
+    else if (!/^\d{10}$/.test(v)) m = "Phone number must be exactly 10 digits.";
+    else if (!indianPhone(v)) m = "Enter a valid mobile number (starts with 6, 7, 8 or 9).";
+    bk("e-" + id).textContent = m; bk(id).toggleAttribute("aria-invalid", !!m);
+    bk(id).closest(".field").classList.toggle("ok", !m);
+  };
+  ["bkName", "bkAge", "bkPhone"].forEach((id) => {
+    bk(id).addEventListener("blur", () => liveCheck(id));
+    bk(id).addEventListener("input", () => bk(id).closest(".field").classList.remove("ok"));
+  });
+  bk("bkPhone").addEventListener("input", () => { if (bk("bkPhone").value.length === 10) liveCheck("bkPhone"); });
+  /* empty My Tests: one-tap popular tests, so "Book" never lands on a blank screen */
+  const q = $("#ctQuick");
+  ["cbc", "fbs-fasting-blood-sugar", "glycosylated-hb-hba1c", "lipid-profile", "t3-t4-tsh", "liver-function-test-lft"].forEach((id) => {
+    const t = getItem(id); if (!t) return;
+    const b = btn("＋ " + t.name.replace(/\s*\(.*\)/, ""), "qk", () => onAddTap(id, b), "Add " + t.name); q.append(b);
+  });
+})();
 function validateBk() {
   const d = readDetails(), errs = {};
   if (d.name.length < 2) errs.bkName = "Please enter the patient's name.";
@@ -645,7 +695,7 @@ function validateBk() {
     bk(id).toggleAttribute("aria-invalid", !!errs[id]);
   });
   const first = Object.keys(errs)[0];
-  if (first) { bk(first).focus(); return null; }
+  if (first) { const el = first === "bkGender" ? ($("#genderSeg button") || bk(first)) : bk(first); el.focus({ preventScroll: true }); const sc = $("#cartDialog .ct-body"), er = bk("e-" + first); if (sc && er) sc.scrollTo({ top: sc.scrollTop + er.getBoundingClientRect().top - sc.getBoundingClientRect().top - 140, behavior: reduceMotion ? "auto" : "smooth" }); return null; }
   return d;
 }
 
@@ -790,7 +840,12 @@ function renderCart() {
   of.hidden = !offerNote; of.textContent = offerNote ? "🏷 " + offerNote : "";
   $("#ctEmpty").hidden = cart.length > 0;
   $("#ctMore").hidden = !cart.length; $("#ctAddNote").hidden = !cart.length; $("#ctNext").hidden = !cart.length;
-  $("#ctSumN").textContent = n + (n === 1 ? " test selected" : " tests selected");
+  { const f = cart[0] && getItem(cart[0].id);
+    $("#ctSumN").textContent = !f ? "0 tests selected" : (cart.length === 1 ? f.name + (cart[0].n > 1 ? " ×" + cart[0].n : "") : f.name + " + " + (n - 1) + " more");
+    pkSync();
+    const bb = $("#bookBar"); bb.hidden = !n; document.body.classList.toggle("has-bookbar", !!n);
+    $("#bookBarT").textContent = n + (n === 1 ? " test selected" : " tests selected");
+    const wa = $("#ctWa"); if (wa) wa.href = "https://wa.me/918217654091" + (n ? "?text=" + encodeURIComponent("Hello, I would like to book home collection for:\n" + cartLines().join("\n")) : ""); }
   $("#ctTab2").classList.toggle("off", !cart.length);
   if (!cart.length && !$("#ctStep2").hidden) setStep(1);
   const go = $("#ctGo"), hint = $("#ctHint");
@@ -817,7 +872,7 @@ $$("#ctTabs [data-step]").forEach((t) => t.addEventListener("click", () => {
 $("#ctNext").addEventListener("click", () => setStep(2));
 $("#ctEdit").addEventListener("click", () => setStep(1));
 let formOpenedAt = Date.now();   // sent with a booking so the server can tell a person from a script
-function openCart() { formOpenedAt = Date.now(); setStep(1); renderCart(); setMenu(false); if (!cartDlg.open) cartDlg.showModal(); refreshSlots(); setupTurnstile(); }
+function openCart(step) { if (!cart.length && isPhone()) { openPicker(); return; } formOpenedAt = Date.now(); setStep(step || (cart.length ? 2 : 1)); renderCart(); setMenu(false); if (!cartDlg.open) cartDlg.showModal(); refreshSlots(); setupTurnstile(); }
 $("#ctClose").addEventListener("click", () => cartDlg.close());
 $("#ctCancel").addEventListener("click", () => {
   const prev = cart.map((x) => ({ ...x })), prevNote = offerNote;
@@ -943,12 +998,14 @@ $("#ctGo").addEventListener("click", async (e) => {
   showDone(res, info);
 });
 ["#ctBrowse", "#ctMore"].forEach((q) => $(q).addEventListener("click", () => { cartDlg.close(); openCatalogue(); }));
-$("#cartBtn").addEventListener("click", () => openCart());
+$("#cartBtn").addEventListener("click", () => openCart(1));
 $("#toast").addEventListener("click", (e) => {
   if (e.target.closest('a[href="#cart"]')) { e.preventDefault(); openCart(); }
   if (e.target.closest('a[href="#undo"]')) { e.preventDefault(); if (undoCart) undoCart(); undoCart = null; }
 });
-$$('[data-action="book"]').forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openCart(); }));
+$$('[data-action="book"]').forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openCart(a.classList.contains("tb-book") ? 1 : 0); }));
+$("#bookBarGo").addEventListener("click", () => openCart(2));
+$("#bookBar").addEventListener("click", (e) => { if (e.target === e.currentTarget || e.target.classList.contains("bookbar-t")) openCart(1); });
 buildTubes();
 renderCart();
 
@@ -1033,13 +1090,16 @@ function testRank(t, words) {
   const name = t.name.toLowerCase(), pl = CAT_INFO[t.catKey] ? CAT_INFO[t.catKey].plain : "", all = (name + " " + t.cat + " " + pl + " " + t.desc).toLowerCase();
   if (!words.every((w) => all.includes(w))) return -1;
   if (name.startsWith(words[0])) return 0;
-  return words.every((w) => name.includes(w)) ? 1 : 2;
+  if (words.every((w) => name.includes(w))) return 1;
+  const nd = (name + " " + t.desc).toLowerCase();
+  return words.every((w) => nd.includes(w)) ? 2 : 3;   // the test itself first, tests that only share a category last
 }
 function searchTests(q) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return TESTS.slice();
+  const hits = (t) => { const nd = (t.name + " " + t.desc).toLowerCase(); return words.reduce((n, w) => n + nd.split(w).length - 1, 0); };
   return TESTS.map((t) => [t, testRank(t, words)]).filter((x) => x[1] >= 0)
-    .sort((a, b) => a[1] - b[1] || a[0].name.localeCompare(b[0].name)).map((x) => x[0]);
+    .sort((a, b) => a[1] - b[1] || hits(b[0]) - hits(a[0]) || a[0].name.localeCompare(b[0].name)).map((x) => x[0]);
 }
 
 /* Catalogue: category tiles, then a compact list. Search looks through every test. */
@@ -1177,6 +1237,7 @@ const NEEDS = [
 })();
 /* Open the catalogue dropdown and jump to it, optionally with a search term */
 function openCatalogue(term) {
+  if (isPhone()) { openPicker(term); return; }   // phones: one simple "Choose your tests" sheet
   if (term != null) { $("#q").value = term; state.q = term; setCat("all"); }
   $("#tests").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
 }
@@ -1751,3 +1812,77 @@ window.addEventListener("storage", (e) => { if (e.key === CART_KEY) { cart = loa
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) { cart = loadCart(); if (!cart.length) clearBkForm(); renderCart(); }
 });
+
+/* =====================================================================
+   CHOOSE YOUR TESTS (phones): search + "what do you need?" + popular + types, all in one sheet
+   ===================================================================== */
+const pickDlg = $("#pickDialog"), pk = { view: "home", i: -1, key: "" };
+function isPhone() { return matchMedia("(max-width:768px)").matches; }
+function openPicker(term) {
+  pk.view = "home"; $("#pkQ").value = term ? String(term).slice(0, 60) : "";
+  renderPicker(); setMenu(false); pkSync();
+  if (!pickDlg.open) pickDlg.showModal();
+  $("#pkBody").scrollTop = 0;
+}
+function pkRow(t) {
+  const r = h("div", "pk-row"), d = h("div", "pk-name");
+  d.append(btn(t.name, "link-btn", () => openDetail(t.id), "What is " + t.name + "? Read details"), h("span", "", t.desc));
+  r.append(d, addBtn(t.id, "btn btn-o rb")); return r;
+}
+function pkPkgRow(p, best) {
+  const r = h("div", "pk-row pk-pkg"), d = h("div", "pk-name");
+  d.append(h("b", "", (best ? "Best ready group: " : "") + p.name), h("span", "", p.desc + " Includes " + p.tests.length + " tests."));
+  r.append(d, addBtn(p.id, "btn btn-p rb")); return r;
+}
+function pkGo(view, i, key) { pk.view = view; pk.i = i; pk.key = key; renderPicker(); $("#pkBody").scrollTop = 0; }
+function renderPicker() {
+  const body = $("#pkBody"), q = $("#pkQ").value.trim().toLowerCase();
+  body.replaceChildren();
+  const back = (label) => { const b = btn("‹ " + label, "link-btn pk-back", () => { $("#pkQ").value = ""; pkGo("home"); }); body.append(b); };
+  if (q) {
+    const list = searchTests(q);
+    body.append(h("p", "pk-h", list.length ? list.length + (list.length === 1 ? " test found" : " tests found") : "No test found"));
+    if (!list.length) body.append(h("p", "pk-empty", "Try a shorter word, like sugar or thyroid. Or call the lab on 8217654091."));
+    list.slice(0, 40).forEach((t) => body.append(pkRow(t)));
+    if (list.length > 40) body.append(h("p", "small", "Type more letters to narrow the list."));
+  } else if (pk.view === "need") {
+    const n = NEEDS[pk.i]; back("All needs");
+    body.append(h("h3", "pk-t", n.e + " " + n.t), h("p", "pk-why", n.why));
+    [n.pkg].concat(n.more || []).filter(Boolean).forEach((name, k) => { const p = PACKAGES.find((x) => x.name === name); if (p) body.append(pkPkgRow(p, k === 0)); });
+    const tests = n.tests.map((x) => TEST_MAP.get(slug(x))).filter(Boolean);
+    if (tests.length) body.append(h("p", "pk-h", n.pkg ? "Or pick single tests" : "Tests usually done for this"));
+    tests.forEach((t) => body.append(pkRow(t)));
+    body.append(h("p", "small", "These are common tests, not a diagnosis. Your doctor decides what you need."));
+  } else if (pk.view === "cat") {
+    const ci = CAT_INFO[pk.key] || { e: "", plain: CATS[pk.key], what: "" }; back("All types");
+    body.append(h("h3", "pk-t", ci.e + " " + ci.plain), h("p", "pk-why", ci.what));
+    TESTS.filter((t) => t.catKey === pk.key).forEach((t) => body.append(pkRow(t)));
+  } else {
+    body.append(h("p", "pk-h", "Not sure? Tap what you need"));
+    const g = h("div", "pk-needs");
+    NEEDS.forEach((n, i) => { const b = h("button", "pk-need"); b.type = "button"; b.append(h("span", "", n.e), h("b", "", n.t)); b.addEventListener("click", () => pkGo("need", i)); g.append(b); });
+    body.append(g, h("p", "pk-h", "Popular tests"));
+    POPULAR_TEST_IDS.map((id) => TEST_MAP.get(id)).filter(Boolean).forEach((t) => body.append(pkRow(t)));
+    body.append(h("p", "pk-h", "Or browse by type"));
+    const cl = h("div", "pk-cats");
+    Object.keys(CATS).forEach((k) => {
+      const ci = CAT_INFO[k] || { e: "", plain: CATS[k] }, b = h("button", "pk-cat"); b.type = "button";
+      b.append(h("span", "", ci.e), h("b", "", ci.plain), h("em", "", TESTS.filter((t) => t.catKey === k).length + " tests"));
+      b.addEventListener("click", () => pkGo("cat", -1, k)); cl.append(b);
+    });
+    body.append(cl);
+  }
+  $$("[data-add]", body).forEach(syncBtn);
+}
+function pkSync() {
+  const go = $("#pkGo"); if (!go) return;
+  const n = cartCount();
+  go.textContent = n ? "Continue to booking · " + n + (n === 1 ? " test" : " tests") + " →" : "Select a test to continue";
+  go.setAttribute("aria-disabled", String(!n));
+}
+$("#pkQ").addEventListener("input", renderPicker);
+$("#pkQ").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } });
+$("#pkClose").addEventListener("click", () => pickDlg.close());
+pickDlg.addEventListener("click", (e) => { if (e.target === pickDlg) pickDlg.close(); });
+$("#pkGo").addEventListener("click", () => { if (!cartCount()) { toast("Tap Add on a test first."); return; } pickDlg.close(); openCart(2); });
+pkSync();
