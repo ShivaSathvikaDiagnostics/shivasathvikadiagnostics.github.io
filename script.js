@@ -595,7 +595,7 @@ function buildDayCards() {
     box.append(c);
   });
 }
-function setSlotStatus(t) { const e = $("#slotStatus"); if (e) { e.textContent = t; e.hidden = !t; } }
+function setSlotStatus(t) { const e = $("#slotStatus"); if (e) { e.textContent = t; e.hidden = !t; e.classList.toggle("info", /^Checking/.test(t)); } }
 let slotsBusy = false, slotsAt = 0;
 async function refreshSlots(force) {
   if (!BOOKING_API || slotsBusy) return;
@@ -777,7 +777,9 @@ function ask(title, msg, actions) {
 askDlg.addEventListener("click", (e) => { if (e.target === askDlg) askDlg.close(); });
 
 /* Animations */
+const buzz = (p) => { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} };   // tiny touch feedback on phones that support it
 function bump(t) {
+  buzz(12);
   if (reduceMotion) return;
   [...$$(".cart-n"), t].filter(Boolean).forEach((e) => { e.classList.remove("bump"); void e.offsetWidth; e.classList.add("bump"); setTimeout(() => e.classList.remove("bump"), 520); });
 }
@@ -1027,6 +1029,12 @@ $("#ctGo").addEventListener("click", async (e) => {
   if (!res || res.ok === false) {
     const hint = $("#ctHint"); hint.hidden = false;
     hint.textContent = res && res.closed ? dayMsg(0, true) : res && res.full ? dayMsg(+bk("bkDay").value, false) : (res && res.network ? "We could not reach the booking system. Please check your internet and try again, or call the lab on 8217654091." : "We could not complete your booking just now. Please try again, or call the lab on 8217654091.");
+    if (!(res && (res.closed || res.full))) {   // server problem: never lose the patient, offer the same request on WhatsApp
+      const o2 = +bk("bkDay").value, msg = ["Hello, I would like to book home collection.", "Day: " + (o2 ? "Tomorrow" : "Today") + ", " + dayLabel(o2), "Patient: " + d.name + ", " + d.age + " yrs, " + d.gender, "Phone: " + d.phone, "Doctor: " + d.doctor, "Area: " + d.area, "Landmark: " + d.landmark, "Tests: " + cartLines().join("; ")].join("\n");
+      const a = h("a", "btn btn-p wa-fallback", "Send this booking on WhatsApp"); a.href = "https://wa.me/918217654091?text=" + encodeURIComponent(msg); a.target = "_blank"; a.rel = "noopener noreferrer";
+      hint.append(document.createElement("br"), a);
+    }
+    buzz([40, 60, 40]);
     await finishBookingProgress(false);
     refreshSlots();
     return;
@@ -1037,6 +1045,7 @@ $("#ctGo").addEventListener("click", async (e) => {
   cartDlg.close();
   wipeBooking(); bump();
   slotsAt = 0; refreshSlots(true);   // the slot count has changed
+  buzz([30, 40, 30]);
   showDone(res, info);
 });
 ["#ctBrowse", "#ctMore"].forEach((q) => $(q).addEventListener("click", () => { cartDlg.close(); openCatalogue(); }));
@@ -1926,3 +1935,20 @@ $("#pkClose").addEventListener("click", () => pickDlg.close());
 pickDlg.addEventListener("click", (e) => { if (e.target === pickDlg) pickDlg.close(); });
 $("#pkGo").addEventListener("click", () => { if (!cartCount()) { toast("Tap Add on a test first."); return; } pickDlg.close(); openCart(2); });
 pkSync();
+
+/* Phone Back button closes the open sheet (booking, test picker, details) instead of leaving the site */
+(function backClosesSheets() {
+  const dlgs = $$("dialog"); let pushed = false;
+  const anyOpen = () => dlgs.some((d) => d.open);
+  const sync = () => {
+    if (anyOpen() && !pushed) { try { history.pushState({ modal: 1 }, ""); pushed = true; } catch (e) {} }
+    else if (!anyOpen() && pushed) { pushed = false; if (history.state && history.state.modal) { try { history.back(); } catch (e) {} } }
+  };
+  let t;
+  const later = () => { clearTimeout(t); t = setTimeout(sync, 80); };   // short wait so one sheet handing over to the next does not pop history
+  dlgs.forEach((d) => new MutationObserver(later).observe(d, { attributes: true, attributeFilter: ["open"] }));
+  window.addEventListener("popstate", () => { if (anyOpen()) { pushed = false; dlgs.forEach((d) => { if (d.open && d !== doneDlg) d.close(); else if (d.open) closeDone(); }); } });
+})();
+/* Offline / back online notice, so a booking is never attempted blind */
+window.addEventListener("offline", () => toast("You are offline. Please check your internet before booking."));
+window.addEventListener("online", () => { toast("Back online."); refreshSlots(true); });

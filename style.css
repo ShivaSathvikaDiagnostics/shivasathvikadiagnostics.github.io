@@ -2137,3 +2137,13 @@ html:has(dialog[open]){overflow:hidden}
 }
 @media(max-width:768px){body:has(#cartDialog[open]) .tabbar,body:has(#cartDialog[open]) .floaters{visibility:hidden}}
 @media(max-width:768px){#cartDialog .bk-foot{bottom:-22px}}
+
+/* Smoother, friendlier feel */
+.err.info{color:var(--muted,#5b6b66);font-weight:500}
+.wa-fallback{margin-top:10px;display:flex;justify-content:center;text-align:center}
+.wa-fallback::before{content:"✆ "}
+dialog,.ct-body,.pk-body{overscroll-behavior:contain}
+button,.btn,.daycard,.seg button{transition:transform .12s ease,background-color .2s ease,box-shadow .2s ease}
+button:active,.btn:active,.daycard:active{transform:scale(.97)}
+.field input:focus,.field select:focus{scroll-margin-block:120px}
+@media(prefers-reduced-motion:reduce){button,.btn,.daycard{transition:none}button:active,.btn:active{transform:none}}
