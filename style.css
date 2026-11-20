@@ -2088,27 +2088,26 @@ html:has(dialog[open]){overflow:hidden}
   .cat-tiles{grid-template-columns:1fr 1fr!important}
 }
 
-/* ===== Phone: easy booking, smaller icons, 3-second colour ring on the bottom bar ===== */
+/* ===== Phone: easy booking, smaller icons, one blink per bottom icon, starting 3s after opening ===== */
 @keyframes tbRing{
-  0%{background-color:rgba(225,245,238,0);box-shadow:0 0 0 0 rgba(232,197,71,0)}
-  12%{background-color:#E1F5EE;box-shadow:0 0 0 2px #E8C547,0 0 0 6px rgba(232,197,71,.35)}
-  55%{background-color:#E1F5EE;box-shadow:0 0 0 2px #E8C547,0 0 0 9px rgba(232,197,71,.12)}
-  85%{background-color:#E1F5EE;box-shadow:0 0 0 2px #E8C547,0 0 0 5px rgba(232,197,71,.3)}
-  100%{background-color:rgba(225,245,238,0);box-shadow:0 0 0 0 rgba(232,197,71,0)}}
+  0%{background-color:rgba(225,245,238,0);box-shadow:0 0 0 0 rgba(232,197,71,0);transform:scale(1);opacity:1}
+  30%{background-color:#E1F5EE;box-shadow:0 0 0 2px #E8C547,0 0 0 7px rgba(232,197,71,.35);transform:scale(1.2);opacity:.35}
+  60%{background-color:#E1F5EE;box-shadow:0 0 0 2px #E8C547,0 0 0 5px rgba(232,197,71,.2);transform:scale(1.1);opacity:1}
+  100%{background-color:rgba(225,245,238,0);box-shadow:0 0 0 0 rgba(232,197,71,0);transform:scale(1);opacity:1}}
 @keyframes tbRingMid{
-  0%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 0 rgba(232,197,71,0)}
-  12%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 3px #E8C547,0 0 0 8px rgba(232,197,71,.35)}
-  55%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 3px #E8C547,0 0 0 11px rgba(232,197,71,.12)}
-  85%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 3px #E8C547,0 0 0 6px rgba(232,197,71,.3)}
-  100%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 0 rgba(232,197,71,0)}}
+  0%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 0 rgba(232,197,71,0);transform:scale(1);opacity:1}
+  30%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 3px #E8C547,0 0 0 9px rgba(232,197,71,.35);transform:scale(1.15);opacity:.45}
+  60%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 3px #E8C547,0 0 0 6px rgba(232,197,71,.2);transform:scale(1.08);opacity:1}
+  100%{box-shadow:0 8px 20px rgba(18,140,74,.4),0 0 0 0 rgba(232,197,71,0);transform:scale(1);opacity:1}}
 @media(max-width:768px){
   .tabbar a{min-height:46px;gap:2px;font-size:.62rem}
   .tabbar svg{width:18px;height:18px}
-  .tabbar a:not(.tb-book) svg{box-sizing:content-box;padding:5px;margin:-3px 0;border-radius:50%;animation:tbRing 3s ease-in-out 1 .4s both}
-  .tabbar a:nth-child(2) svg{animation-delay:.5s}
-  .tabbar a:nth-child(4) svg{animation-delay:.7s}
-  .tabbar a:nth-child(5) svg{animation-delay:.8s}
-  .tb-book i{width:40px;height:40px;margin-top:-22px;border-width:3px;animation:tbRingMid 3s ease-in-out 1 .6s both}
+  .tabbar a:not(.tb-book) svg{box-sizing:content-box;padding:5px;margin:-3px 0;border-radius:50%;animation:tbRing .9s ease-in-out 1 both}
+  .tabbar a:nth-child(1) svg{animation-delay:3s}
+  .tabbar a:nth-child(2) svg{animation-delay:3.9s}
+  .tabbar a:nth-child(4) svg{animation-delay:5.7s}
+  .tabbar a:nth-child(5) svg{animation-delay:6.6s}
+  .tb-book i{width:40px;height:40px;margin-top:-22px;border-width:3px;animation:tbRingMid .9s ease-in-out 1 4.8s both}
   .tb-book .tubeico{transform:scale(.78)}
   #waFab{transform-origin:right bottom;scale:.82}
   .hero-btns{flex-direction:row;flex-wrap:wrap;gap:8px}
