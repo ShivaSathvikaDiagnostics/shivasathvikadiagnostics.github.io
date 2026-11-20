@@ -35,7 +35,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=29">
 <!-- Site name shown by Google above the web address -->
 <script type="application/ld+json">
 {
@@ -477,12 +477,11 @@
         <div class="field bk-full"><label for="bkGender" id="genLbl">Gender *</label><div class="seg" id="genderSeg" role="radiogroup" aria-labelledby="genLbl"></div><select id="bkGender" name="gender" required class="vh" tabindex="-1" aria-hidden="true"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select><span class="err" id="e-bkGender" role="alert"></span></div>
         <div class="field bk-full"><label for="bkPhone">WhatsApp number *</label><input id="bkPhone" name="phone" type="tel" inputmode="numeric" pattern="[6-9][0-9]{9}" autocomplete="tel-national" enterkeyhint="next" maxlength="10" placeholder="10-digit WhatsApp number" required aria-describedby="e-bkPhone"><span class="field-note">Enter the number you use on WhatsApp. Our lab sends your booking confirmation on this number within 30 minutes.</span><span class="err" id="e-bkPhone" role="alert"></span></div>
         <div class="bk-full"><button class="link-btn doc-toggle" id="docToggle" type="button" aria-expanded="false" aria-controls="bkDoctorWrap">＋ Referred by a doctor? (optional)</button></div>
-        <div class="field bk-full" id="bkDoctorWrap" hidden><label for="bkDoctor">Doctor's name</label><input id="bkDoctor" autocomplete="off" name="doctor" type="text" maxlength="60" value="Self" placeholder="Self"></div>
+        <div class="field bk-full" id="bkDoctorWrap" hidden><label for="bkDoctor">Doctor's name</label><input id="bkDoctor" autocomplete="off" name="doctor" type="text" maxlength="60" value="Dr. " placeholder="Dr. Name" autocapitalize="words"></div>
         <div class="field bk-full"><label for="bkLandmark">Nearest landmark *</label><select id="bkLandmark" name="landmark" required></select><span class="err" id="e-bkLandmark" role="alert"></span></div>
         <div class="field bk-full" id="bkOtherWrap" hidden><label for="bkOther">Type your landmark *</label><input id="bkOther" autocomplete="off" name="other" type="text" maxlength="60"><span class="err" id="e-bkOther" role="alert"></span></div>
         <div class="field bk-full"><label for="bkArea">Area *</label><select id="bkArea" name="area" required></select><span class="err" id="e-bkArea" role="alert"></span></div>
         <div class="field bk-full" id="bkAreaOtherWrap" hidden><label for="bkAreaOther">Type your area *</label><input id="bkAreaOther" autocomplete="off" name="areaOther" type="text" maxlength="60"><span class="err" id="e-bkAreaOther" role="alert"></span></div>
-        <div class="field bk-full"><label class="chk chk-big" for="bkRadius"><input id="bkRadius" name="radius" type="checkbox" required> <span>My address is within 5 km of the lab.</span></label><span class="err" id="e-bkRadius" role="alert"></span></div>
         <div class="bk-full" id="tsBox"></div>
         <input type="text" name="website" id="bkHp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
       </div>
@@ -580,6 +579,6 @@
   <div class="cart-btns" id="askBtns"></div>
 </dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="script.js?v=27"></script>
+<script src="script.js?v=32"></script>
 </body>
 </html>

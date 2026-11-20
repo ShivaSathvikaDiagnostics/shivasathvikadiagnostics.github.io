@@ -2114,3 +2114,6 @@ html:has(dialog[open]){overflow:hidden}
   .hero-btns .btn-o-l::before{content:"\1F4CD\00a0"}
 }
 @media(prefers-reduced-motion:reduce){.tabbar svg,.tb-book i{animation:none!important}}
+
+/* Phone: keyboard open = hide the sticky Book bar so it does not cover the form */
+@media(max-width:768px){#cartDialog.kb .bk-foot{display:none}}

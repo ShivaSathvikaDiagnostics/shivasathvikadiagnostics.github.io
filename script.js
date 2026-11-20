@@ -420,11 +420,11 @@ const LANDMARK_AREAS = {
   "Vapasandra": ["Vapasandra", "Manchanabelle Road"],
   "Reshmigudu Market": ["Reshmigudu Market"],
   "Bhagath Singh Nagar": ["Bhagath Singh Nagar", "Darga Mohalla"],
-  "Prashanth Nagar": ["Prashanth Nagar"],
+  "Prashanth Nagar": ["Prashanth Nagar", "Brahmakumaris Road"],
   "Police Quarters": ["Police Quarters", "Timmakka Layout", "Prashanth Nagar"],
   "Municipal Layout": ["Municipal Layout", "Dinnehosahalli Road"],
   "Gangamidde": ["Gangamidde", "Nimalakalakunte"],
-  "New District Hospital": ["New District Hospital", "TG Bank"],
+  "New District Hospital": ["New District Hospital", "TG Bank", "DH Road"],
   "Newton Grammar School": ["Newton Grammar School", "Municipal College", "Sweepers Colony"],
   "Municipal Corporation": ["Municipal Corporation", "Doddamasudi"],
   "Alaragadda": ["Alaragadda", "Walasanna", "Nagarthapete", "Kandwarapete"],
@@ -445,7 +445,30 @@ const LANDMARK_AREAS = {
   "Yelepete": ["Yelepete", "Kurubara Street"],
   "Koracharapete": ["Koracharapete", "Venugopalaswamy Temple"],
   "Ambedkar Nagar": ["Ambedkar Nagar"],
-  "Sunnakalu Street": ["Sunnakalu Street", "Indiranagar", "Badavara Sangha Colony", "Vapasandra"]
+  "Sunnakalu Street": ["Sunnakalu Street", "Indiranagar", "Badavara Sangha Colony", "Vapasandra"],
+  "APMC Market": ["APMC Market", "Silk Cocoon Market"],
+  "KEB Colony": ["KEB Colony"],
+  "CMC Layout": ["CMC Layout"],
+  "KHB Layout": ["KHB Layout"],
+  "Sai Sumana Layout": ["Sai Sumana Layout"],
+  "JP City Layout": ["JP City Layout"],
+  "Devappa Layout": ["Devappa Layout"],
+  "Kallappa Layout": ["Kallappa Layout"],
+  "Nagarjuna Layout": ["Nagarjuna Layout"],
+  "KRS Residential Layout": ["KRS Residential Layout"],
+  "Hill View Layout": ["Hill View Layout"],
+  "Sri Krishna Sai Layout": ["Sri Krishna Sai Layout"],
+  "IDSMT Layout": ["IDSMT Layout"],
+  "Channakrishnappa Layout": ["Channakrishnappa Layout"],
+  "CSI Hospital Road": ["CSI Hospital Road"],
+  "SJC Institute of Technology": ["SJC Institute of Technology"],
+  "Presidency School": ["Presidency School"],
+  "BGS World School": ["BGS World School"],
+  "Sri Krishna Rukmini PU College": ["Sri Krishna Rukmini PU College"],
+  "Kempegowda Law College": ["Kempegowda Law College"],
+  "Jeevan Hospital": ["Jeevan Hospital"],
+  "Manasa Hospital": ["Manasa Hospital"],
+  "Sri Manjunatha Hospital": ["Sri Manjunatha Hospital"]
 };
 const LANDMARKS = Object.keys(LANDMARK_AREAS);
 const AREAS = [...new Set(Object.values(LANDMARK_AREAS).flat())].sort((x, y) => x.localeCompare(y));
@@ -517,7 +540,7 @@ const bk = (id) => $("#" + id);
 function readDetails() {
   const lm = bk("bkLandmark").value === "Other" ? clean(bk("bkOther").value, 60) : (LANDMARKS.includes(bk("bkLandmark").value) ? bk("bkLandmark").value : "");
   return { name: clean(bk("bkName").value, 60), age: (() => { const a = parseInt(bk("bkAge").value, 10); return Number.isFinite(a) ? String(a).slice(0, 3) : ""; })(), phone: indianPhone(bk("bkPhone").value),
-    doctor: clean(bk("bkDoctor").value, 60) || "Self", landmark: lm,
+    doctor: (/^\s*(dr\.?)?\s*$/i.test(bk("bkDoctor").value) ? "" : clean(bk("bkDoctor").value, 60)) || "Self", landmark: lm,
     gender: ["Male", "Female", "Other"].includes(bk("bkGender").value) ? bk("bkGender").value : "",
     area: bk("bkArea").value === "Other" ? clean(bk("bkAreaOther").value, 60) : (AREAS.includes(bk("bkArea").value) ? bk("bkArea").value : "") };
 }
@@ -626,8 +649,18 @@ async function submitBooking(d) {
   sel.addEventListener("change", () => { bk("bkOtherWrap").hidden = sel.value !== "Other"; buildAreaOptions(); });
   bk("bkArea").addEventListener("change", () => { bk("bkAreaOtherWrap").hidden = bk("bkArea").value !== "Other"; });
   buildAreaOptions();
-  bk("bkDoctor").addEventListener("focus", (e) => { if (e.target.value === "Self") e.target.select(); });   // type to replace "Self"
-  bk("bkDoctor").addEventListener("blur", (e) => { if (!e.target.value.trim()) e.target.value = "Self"; });
+  /* Doctor name starts with "Dr. "; empty or just "Dr." is sent as "Self" */
+  bk("bkDoctor").addEventListener("focus", (e) => { const t = e.target; setTimeout(() => { const n = t.value.length; try { t.setSelectionRange(n, n); } catch (x) {} }, 0); });
+  bk("bkDoctor").addEventListener("blur", (e) => { if (/^\s*(dr\.?)?\s*$/i.test(e.target.value)) e.target.value = "Dr. "; });
+  /* Capital letter at the start of every word, while typing (name and doctor) */
+  const capWords = (el) => {
+    const v = el.value, c = v.replace(/(^|[\s.])([a-z\u00e0-\u024f])/g, (m, a, b) => a + b.toUpperCase());
+    if (c !== v) { const p = el.selectionStart; el.value = c; try { el.setSelectionRange(p, p); } catch (x) {} }
+  };
+  ["bkName", "bkDoctor"].forEach((id) => bk(id).addEventListener("input", (e) => capWords(e.target)));
+  /* Phone: hide the sticky Book bar while the keyboard is open so it never covers the fields */
+  cartDlg.addEventListener("focusin", (e) => { if (e.target.matches("input, select, textarea")) cartDlg.classList.add("kb"); });
+  cartDlg.addEventListener("focusout", () => setTimeout(() => { if (!document.activeElement || !document.activeElement.matches("input, select, textarea") || !cartDlg.contains(document.activeElement)) cartDlg.classList.remove("kb"); }, 150));
   setTimeout(() => refreshSlots(true), 1200);   // warm up the booking server while the visitor browses, so booking later is fast
   try { localStorage.removeItem(DETAIL_KEY); } catch (e) {}   // privacy: patient details are never kept in the browser (also wipes data saved by older versions)
 })();
@@ -638,7 +671,7 @@ bk("bkPhone").addEventListener("paste", (e) => {   // "+91 98765 43210" pasted b
   e.target.value = tenDigits(t.getData("text"));
   e.target.dispatchEvent(new Event("input", { bubbles: true }));
 });
-["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther", "bkRadius"].forEach((id) => {
+["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther"].forEach((id) => {
   const clear = () => { bk("e-" + id).textContent = ""; bk(id).removeAttribute("aria-invalid"); };
   bk(id).addEventListener("input", clear); bk(id).addEventListener("change", clear);
 });
@@ -690,8 +723,7 @@ function validateBk() {
   if (!d.gender) errs.bkGender = "Please select gender.";
   if (!bk("bkArea").value) errs.bkArea = "Please select your area.";
   else if (!d.area) errs.bkAreaOther = "Please type your area.";
-  if (!bk("bkRadius").checked) errs.bkRadius = "Home collection is only within 5 km of the lab. Please call us if you live further away.";
-  ["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther", "bkRadius"].forEach((id) => {
+  ["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther"].forEach((id) => {
     bk("e-" + id).textContent = errs[id] || "";
     bk(id).toggleAttribute("aria-invalid", !!errs[id]);
   });
