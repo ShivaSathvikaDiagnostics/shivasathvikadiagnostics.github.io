@@ -314,7 +314,7 @@ function loadCart() {
     if (!raw || Array.isArray(raw) || !raw.t || Date.now() - raw.t > CART_TTL || !Array.isArray(raw.items)) { localStorage.removeItem(CART_KEY); return []; }
     return raw.items
       .filter((x) => x && typeof x.id === "string" && getItem(x.id))
-      .map((x) => ({ id: x.id, n: Math.min(9, Math.max(1, x.n | 0 || 1)) }));
+      .map((x) => ({ id: x.id, n: 1 }));
   } catch (e) { return []; }
 }
 cart = loadCart();
@@ -758,18 +758,13 @@ function syncBtn(b) {
   b.textContent = on ? "✓ Added" + (n > 1 ? " ×" + n : "") : (b.classList.contains("rb") ? "Add" : "Add to My Tests");
   b.classList.toggle("added", on);
   b.setAttribute("aria-pressed", String(on));
-  if (it) b.setAttribute("aria-label", it.name + (on ? " is in My Tests. Tap to add another." : ": add to My Tests"));
+  if (it) b.setAttribute("aria-label", it.name + (on ? " is in My Tests." : ": add to My Tests"));
   if (was !== undefined && was !== b.dataset.on && !reduceMotion) { b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
 }
 function addBtn(id, cls) { const b = btn("", cls, () => onAddTap(id, b)); b.dataset.add = id; syncBtn(b); return b; }
 function onAddTap(id, src) {
   const it = getItem(id); if (!it) return;
-  if (find(id)) {   // tapping Add again adds another one straight away (for another person); the − / × controls in My Tests undo it
-    const before = qtyOf(id);
-    changeQty(id, 1, src);
-    if (qtyOf(id) > before) toast(it.name + " ×" + qtyOf(id) + " in My Tests.", "View", "#cart");
-    return;
-  }
+  if (find(id)) { toast(it.name + " is already in My Tests.", "View", "#cart"); return; }   // one of each test only
   const ov = overlapText(id);
   if (ov) {
     ask("Please check your list", ov + " Do you still want to add it?", [
@@ -790,7 +785,7 @@ function addItem(id, src) {
 function changeQty(id, d, src) {
   const x = find(id); if (!x) return;
   if (x.n + d < 1) { removeItem(id); return; }
-  if (x.n + d > 9) { toast("Maximum 9 of one test per booking."); return; }
+  if (x.n + d > 1) { toast("Each test can be added only once."); return; }
   x.n += d; flash = { id, type: "qty" };
   if (d > 0) { lastAdd = itemColour(id); holdTubeFor(); }
   saveCart(); renderCart();
@@ -830,8 +825,7 @@ function renderCart() {
     const qty = h("div", "ct-qty");
     qty.append(btn("−", "", () => changeQty(x.id, -1), "Decrease quantity of " + it.name), h("span", "", String(x.n)), btn("+", "", () => changeQty(x.id, 1), "Increase quantity of " + it.name));
     const row = h("div", "ct-row2");
-    row.append(qty);
-    li.append(info, btn("×", "ct-rm", () => removeItem(x.id), "Remove " + it.name), row);
+    li.append(info, btn("×", "ct-rm", () => removeItem(x.id), "Remove " + it.name));
     list.append(li);
   });
   const of = $("#ctOffer");
