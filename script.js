@@ -661,6 +661,25 @@ async function submitBooking(d) {
   /* Phone: hide the sticky Book bar while the keyboard is open so it never covers the fields */
   cartDlg.addEventListener("focusin", (e) => { if (e.target.matches("input, select, textarea")) cartDlg.classList.add("kb"); });
   cartDlg.addEventListener("focusout", () => setTimeout(() => { if (!document.activeElement || !document.activeElement.matches("input, select, textarea") || !cartDlg.contains(document.activeElement)) cartDlg.classList.remove("kb"); }, 150));
+  /* Enter / Next on the keyboard moves to the next field of the booking form; on the last one it closes the keyboard */
+  const chain = () => {
+    const out = [];
+    ["bkName", "bkAge", "gender", "bkPhone", "bkDoctor", "bkLandmark", "bkOther", "bkArea", "bkAreaOther"].forEach((id) => {
+      if (id === "gender") { if (!bk("bkGender").value) { const b = $("#genderSeg button"); if (b) out.push(b); } return; }
+      const el = bk(id); if (el && !el.closest("[hidden]") && el.offsetParent !== null) out.push(el);
+    });
+    return out;
+  };
+  $("#bkForm").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing || !e.target.matches("input:not(.hp), select")) return;
+    e.preventDefault();
+    const list = chain(), i = list.indexOf(e.target);
+    let nxt = list[i + 1];
+    if (i < 0) nxt = list[0];
+    if (nxt) { nxt.focus(); try { nxt.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (x) {} }
+    else e.target.blur();
+  });
+  ["bkName", "bkAge", "bkPhone", "bkDoctor", "bkOther", "bkAreaOther"].forEach((id) => { const el = bk(id); if (el) el.setAttribute("enterkeyhint", "next"); });
   setTimeout(() => refreshSlots(true), 1200);   // warm up the booking server while the visitor browses, so booking later is fast
   try { localStorage.removeItem(DETAIL_KEY); } catch (e) {}   // privacy: patient details are never kept in the browser (also wipes data saved by older versions)
 })();
@@ -868,8 +887,6 @@ function renderCart() {
   { const f = cart[0] && getItem(cart[0].id);
     $("#ctSumN").textContent = !f ? "0 tests selected" : (cart.length === 1 ? f.name + (cart[0].n > 1 ? " ×" + cart[0].n : "") : f.name + " + " + (n - 1) + " more");
     pkSync();
-    const bb = $("#bookBar"); bb.hidden = !n; document.body.classList.toggle("has-bookbar", !!n);
-    $("#bookBarT").textContent = n + (n === 1 ? " test selected" : " tests selected");
     const wa = $("#ctWa"); if (wa) wa.href = "https://wa.me/918217654091" + (n ? "?text=" + encodeURIComponent("Hello, I would like to book home collection for:\n" + cartLines().join("\n")) : ""); }
   $("#ctTab2").classList.toggle("off", !cart.length);
   if (!cart.length && !$("#ctStep2").hidden) setStep(1);
@@ -1029,8 +1046,6 @@ $("#toast").addEventListener("click", (e) => {
   if (e.target.closest('a[href="#undo"]')) { e.preventDefault(); if (undoCart) undoCart(); undoCart = null; }
 });
 $$('[data-action="book"]').forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openCart(a.classList.contains("tb-book") ? 1 : 0); }));
-$("#bookBarGo").addEventListener("click", () => openCart(2));
-$("#bookBar").addEventListener("click", (e) => { if (e.target === e.currentTarget || e.target.classList.contains("bookbar-t")) openCart(1); });
 buildTubes();
 renderCart();
 

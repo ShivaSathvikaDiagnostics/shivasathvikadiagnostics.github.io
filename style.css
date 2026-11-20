@@ -2116,4 +2116,24 @@ html:has(dialog[open]){overflow:hidden}
 @media(prefers-reduced-motion:reduce){.tabbar svg,.tb-book i{animation:none!important}}
 
 /* Phone: keyboard open = hide the sticky Book bar so it does not cover the form */
-@media(max-width:768px){#cartDialog.kb .bk-foot{display:none}}
+
+
+/* ---- Phone: big bottom-bar icons ---- */
+@media(max-width:768px){
+  :root{--tabh:88px}
+  .tabbar{padding-top:8px}
+  .tabbar a{min-height:64px;gap:4px;font-size:.74rem}
+  .tabbar svg,.tabbar a:not(.tb-book) svg{width:32px;height:32px;padding:0;margin:0;stroke-width:1.9;animation:none}
+  .tb-book i{width:62px;height:62px;margin-top:-32px;border-width:4px;animation:none}
+  .tb-book .tubeico{transform:scale(1.05)}
+}
+/* Phone: the Book Home Collection button stays pinned at the bottom of the sheet, even with the keyboard open.
+   With the keyboard open it shrinks to just the button, so it never covers the fields being typed. */
+@media(max-width:768px){
+  #cartDialog .bk-foot{position:sticky;bottom:0}
+  #cartDialog.kb .bk-foot{padding-top:8px;padding-bottom:8px;box-shadow:0 -4px 10px rgba(14,58,49,.08)}
+  #cartDialog.kb .bk-foot .small,#cartDialog.kb .bk-foot .bk-alt{display:none}
+  #cartDialog.kb .bk-foot .bk-btns .btn{min-height:46px}
+}
+@media(max-width:768px){body:has(#cartDialog[open]) .tabbar,body:has(#cartDialog[open]) .floaters{visibility:hidden}}
+@media(max-width:768px){#cartDialog .bk-foot{bottom:-22px}}
