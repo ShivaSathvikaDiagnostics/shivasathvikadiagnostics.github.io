@@ -314,6 +314,7 @@ function loadCart() {
     if (!raw || Array.isArray(raw) || !raw.t || Date.now() - raw.t > CART_TTL || !Array.isArray(raw.items)) { localStorage.removeItem(CART_KEY); return []; }
     return raw.items
       .filter((x) => x && typeof x.id === "string" && getItem(x.id))
+      .filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i)
       .map((x) => ({ id: x.id, n: 1 }));
   } catch (e) { return []; }
 }
