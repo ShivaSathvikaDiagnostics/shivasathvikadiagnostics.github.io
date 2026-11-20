@@ -758,18 +758,16 @@ function syncBtn(b) {
   b.textContent = on ? "✓ Added" + (n > 1 ? " ×" + n : "") : (b.classList.contains("rb") ? "Add" : "Add to My Tests");
   b.classList.toggle("added", on);
   b.setAttribute("aria-pressed", String(on));
-  if (it) b.setAttribute("aria-label", it.name + (on ? " is in My Tests. Tap to change." : ": add to My Tests"));
+  if (it) b.setAttribute("aria-label", it.name + (on ? " is in My Tests. Tap to add another." : ": add to My Tests"));
   if (was !== undefined && was !== b.dataset.on && !reduceMotion) { b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
 }
 function addBtn(id, cls) { const b = btn("", cls, () => onAddTap(id, b)); b.dataset.add = id; syncBtn(b); return b; }
 function onAddTap(id, src) {
   const it = getItem(id); if (!it) return;
-  if (find(id)) {
-    ask("Already in My Tests", it.name + " is already in your list" + (qtyOf(id) > 1 ? " (×" + qtyOf(id) + ")" : "") + ". Is this for another person?", [
-      { label: "Add another", cls: "btn btn-p", fn: () => changeQty(id, 1, src) },
-      { label: "Remove it", cls: "btn btn-o", fn: () => removeItem(id) },
-      { label: "Keep as it is", cls: "link-btn" }
-    ]);
+  if (find(id)) {   // tapping Add again adds another one straight away (for another person); the − / × controls in My Tests undo it
+    const before = qtyOf(id);
+    changeQty(id, 1, src);
+    if (qtyOf(id) > before) toast(it.name + " ×" + qtyOf(id) + " in My Tests.", "View", "#cart");
     return;
   }
   const ov = overlapText(id);
