@@ -471,7 +471,6 @@ const LANDMARK_AREAS = {
   "Sri Manjunatha Hospital": ["Sri Manjunatha Hospital"]
 };
 const LANDMARKS = Object.keys(LANDMARK_AREAS);
-const AREAS = [...new Set(Object.values(LANDMARK_AREAS).flat())].sort((x, y) => x.localeCompare(y));
 /* ---- Google Sheets booking + 50 slots per day ----
    Paste the Web app URL of your Google Apps Script here (see SETUP-GOOGLE-SHEET.md).
    Leave empty to book on WhatsApp only (no slot counting). */
@@ -494,26 +493,9 @@ function setupTurnstile() {
 }
 function resetTurnstile() { tsToken = ""; if (tsWidget !== null && window.turnstile) { try { window.turnstile.reset(tsWidget); } catch (e) {} } }
 /* Clears every patient field so nothing is left on screen after booking */
-/* Area list: only the areas of the chosen landmark, then "Other" to type your own.
-   If the landmark is "Other", every area is offered. */
-function buildAreaOptions() {
-  const as = bk("bkArea"), keep = as.value, lm = bk("bkLandmark").value;
-  as.textContent = "";
-  if (!lm) { as.append(new Option("Select landmark first", "")); bk("bkAreaOtherWrap").hidden = true; as.closest(".field").hidden = true; return; }
-  const list = LANDMARK_AREAS[lm] || AREAS;
-  as.append(new Option("Select your area", ""));
-  list.forEach((x) => as.append(new Option(x, x)));
-  as.append(new Option("Other (type your area)", "Other"));
-  if (keep && [...as.options].some((o) => o.value === keep)) as.value = keep;
-  else if (list.length === 1) as.value = list[0];
-  bk("bkAreaOtherWrap").hidden = as.value !== "Other";
-  bk("bkArea").closest(".field").hidden = list.length === 1 && lm !== "Other";
-}
 function clearBkForm() {
   const f = $("#bkForm"); if (f) f.reset();   // the doctor box goes back to "Self"
   bk("bkOtherWrap").hidden = true;
-  bk("bkAreaOtherWrap").hidden = true;
-  buildAreaOptions();
   buildDayOptions();
   syncGender();
   const dw = $("#bkDoctorWrap"); if (dw) { dw.hidden = true; $("#docToggle").hidden = false; $("#docToggle").setAttribute("aria-expanded", "false"); }
@@ -541,8 +523,7 @@ function readDetails() {
   const lm = bk("bkLandmark").value === "Other" ? clean(bk("bkOther").value, 60) : (LANDMARKS.includes(bk("bkLandmark").value) ? bk("bkLandmark").value : "");
   return { name: clean(bk("bkName").value, 60), age: (() => { const a = parseInt(bk("bkAge").value, 10); return Number.isFinite(a) ? String(a).slice(0, 3) : ""; })(), phone: indianPhone(bk("bkPhone").value),
     doctor: (/^\s*(dr\.?)?\s*$/i.test(bk("bkDoctor").value) ? "" : clean(bk("bkDoctor").value, 60)) || "Self", landmark: lm,
-    gender: ["Male", "Female", "Other"].includes(bk("bkGender").value) ? bk("bkGender").value : "",
-    area: bk("bkArea").value === "Other" ? clean(bk("bkAreaOther").value, 60) : (AREAS.includes(bk("bkArea").value) ? bk("bkArea").value : "") };
+    gender: ["Male", "Female", "Other"].includes(bk("bkGender").value) ? bk("bkGender").value : "" };
 }
 function dayLabel(offset) {
   const d = new Date(); d.setDate(d.getDate() + offset);
@@ -646,9 +627,7 @@ async function submitBooking(d) {
   sel.append(new Option("Select nearest landmark", ""));
   LANDMARKS.forEach((l) => sel.append(new Option(l, l)));
   sel.append(new Option("Other (type below)", "Other"));
-  sel.addEventListener("change", () => { bk("bkOtherWrap").hidden = sel.value !== "Other"; buildAreaOptions(); });
-  bk("bkArea").addEventListener("change", () => { bk("bkAreaOtherWrap").hidden = bk("bkArea").value !== "Other"; });
-  buildAreaOptions();
+  sel.addEventListener("change", () => { bk("bkOtherWrap").hidden = sel.value !== "Other"; });
   /* Doctor name starts with "Dr. "; empty or just "Dr." is sent as "Self" */
   bk("bkDoctor").addEventListener("focus", (e) => { const t = e.target; setTimeout(() => { const n = t.value.length; try { t.setSelectionRange(n, n); } catch (x) {} }, 0); });
   bk("bkDoctor").addEventListener("blur", (e) => { if (/^\s*(dr\.?)?\s*$/i.test(e.target.value)) e.target.value = "Dr. "; });
@@ -664,7 +643,7 @@ async function submitBooking(d) {
   /* Enter / Next on the keyboard moves to the next field of the booking form; on the last one it closes the keyboard */
   const chain = () => {
     const out = [];
-    ["bkName", "bkAge", "gender", "bkPhone", "bkDoctor", "bkLandmark", "bkOther", "bkArea", "bkAreaOther"].forEach((id) => {
+    ["bkName", "bkAge", "gender", "bkPhone", "bkDoctor", "bkLandmark", "bkOther"].forEach((id) => {
       if (id === "gender") { if (!bk("bkGender").value) { const b = $("#genderSeg button"); if (b) out.push(b); } return; }
       const el = bk(id); if (el && !el.closest("[hidden]") && el.offsetParent !== null) out.push(el);
     });
@@ -679,7 +658,7 @@ async function submitBooking(d) {
     if (nxt) { nxt.focus(); try { nxt.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (x) {} }
     else e.target.blur();
   });
-  ["bkName", "bkAge", "bkPhone", "bkDoctor", "bkOther", "bkAreaOther"].forEach((id) => { const el = bk(id); if (el) el.setAttribute("enterkeyhint", "next"); });
+  ["bkName", "bkAge", "bkPhone", "bkDoctor", "bkOther"].forEach((id) => { const el = bk(id); if (el) el.setAttribute("enterkeyhint", "next"); });
   setTimeout(() => refreshSlots(true), 1200);   // warm up the booking server while the visitor browses, so booking later is fast
   try { localStorage.removeItem(DETAIL_KEY); } catch (e) {}   // privacy: patient details are never kept in the browser (also wipes data saved by older versions)
 })();
@@ -690,7 +669,7 @@ bk("bkPhone").addEventListener("paste", (e) => {   // "+91 98765 43210" pasted b
   e.target.value = tenDigits(t.getData("text"));
   e.target.dispatchEvent(new Event("input", { bubbles: true }));
 });
-["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther"].forEach((id) => {
+["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther"].forEach((id) => {
   const clear = () => { bk("e-" + id).textContent = ""; bk(id).removeAttribute("aria-invalid"); };
   bk(id).addEventListener("input", clear); bk(id).addEventListener("change", clear);
 });
@@ -740,9 +719,7 @@ function validateBk() {
   if (!bk("bkLandmark").value) errs.bkLandmark = "Please choose a landmark.";
   else if (!d.landmark) errs.bkOther = "Please type your landmark.";
   if (!d.gender) errs.bkGender = "Please select gender.";
-  if (!bk("bkArea").value) errs.bkArea = "Please select your area.";
-  else if (!d.area) errs.bkAreaOther = "Please type your area.";
-  ["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther", "bkArea", "bkAreaOther"].forEach((id) => {
+  ["bkName", "bkAge", "bkGender", "bkPhone", "bkLandmark", "bkOther"].forEach((id) => {
     bk("e-" + id).textContent = errs[id] || "";
     bk(id).toggleAttribute("aria-invalid", !!errs[id]);
   });
@@ -935,7 +912,7 @@ const doneDlg = $("#doneDialog");
 function showDone(res, info) {
   const det = $("#doneDet"); det.replaceChildren();
   [["Collection day", info.when], ["Patient", info.name + ", " + info.age + " yrs, " + info.gender], ["WhatsApp number", fmtPhone(info.phone)],
-   ["Doctor", info.doctor], ["Area", info.area], ["Landmark", info.landmark]].forEach(([k, v]) => { const d = h("div"); d.append(h("dt", "", k), h("dd", "", v)); det.append(d); });
+   ["Doctor", info.doctor], ["Landmark", info.landmark]].forEach(([k, v]) => { const d = h("div"); d.append(h("dt", "", k), h("dd", "", v)); det.append(d); });
   const tests = h("div", "done-tests"), ul = h("ul");
   info.tests.forEach((t) => ul.append(h("li", "", t)));
   tests.append(h("dt", "", "Tests (" + info.tests.length + ")"), ul); det.append(tests);
@@ -1030,7 +1007,7 @@ $("#ctGo").addEventListener("click", async (e) => {
     const hint = $("#ctHint"); hint.hidden = false;
     hint.textContent = res && res.closed ? dayMsg(0, true) : res && res.full ? dayMsg(+bk("bkDay").value, false) : (res && res.network ? "We could not reach the booking system. Please check your internet and try again, or call the lab on 8217654091." : "We could not complete your booking just now. Please try again, or call the lab on 8217654091.");
     if (!(res && (res.closed || res.full))) {   // server problem: never lose the patient, offer the same request on WhatsApp
-      const o2 = +bk("bkDay").value, msg = ["Hello, I would like to book home collection.", "Day: " + (o2 ? "Tomorrow" : "Today") + ", " + dayLabel(o2), "Patient: " + d.name + ", " + d.age + " yrs, " + d.gender, "Phone: " + d.phone, "Doctor: " + d.doctor, "Area: " + d.area, "Landmark: " + d.landmark, "Tests: " + cartLines().join("; ")].join("\n");
+      const o2 = +bk("bkDay").value, msg = ["Hello, I would like to book home collection.", "Day: " + (o2 ? "Tomorrow" : "Today") + ", " + dayLabel(o2), "Patient: " + d.name + ", " + d.age + " yrs, " + d.gender, "Phone: " + d.phone, "Doctor: " + d.doctor, "Landmark: " + d.landmark, "Tests: " + cartLines().join("; ")].join("\n");
       const a = h("a", "btn btn-p wa-fallback", "Send this booking on WhatsApp"); a.href = "https://wa.me/918217654091?text=" + encodeURIComponent(msg); a.target = "_blank"; a.rel = "noopener noreferrer";
       hint.append(document.createElement("br"), a);
     }
@@ -1041,7 +1018,7 @@ $("#ctGo").addEventListener("click", async (e) => {
   }
   await finishBookingProgress(true);
   const o = +bk("bkDay").value, when = (o ? "Tomorrow" : "Today") + ", " + dayLabel(o);
-  const info = { when, name: d.name, age: d.age, gender: d.gender, phone: d.phone, doctor: d.doctor, area: d.area, landmark: d.landmark, tests: cartLines() };
+  const info = { when, name: d.name, age: d.age, gender: d.gender, phone: d.phone, doctor: d.doctor, landmark: d.landmark, tests: cartLines() };
   cartDlg.close();
   wipeBooking(); bump();
   slotsAt = 0; refreshSlots(true);   // the slot count has changed
