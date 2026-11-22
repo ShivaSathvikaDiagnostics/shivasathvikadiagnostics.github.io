@@ -474,7 +474,7 @@ const LANDMARKS = Object.keys(LANDMARK_AREAS);
 /* ---- Google Sheets booking + 50 slots per day ----
    Paste the Web app URL of your Google Apps Script here (see SETUP-GOOGLE-SHEET.md).
    Leave empty to book on WhatsApp only (no slot counting). */
-const BOOKING_API_URL = "https://script.google.com/macros/s/AKfycbyrCIno8MjAyMSaEVfLKO-pn4tU7CcKO8QmbMx8y6Vai2BgLEfr7tfTkutxJwmeL1dN/exec";   // MUST look like https://script.google.com/macros/s/AKfy.../exec  (NOT a /macros/library/ link)
+const BOOKING_API_URL = "https://script.google.com/macros/s/AKfycbzBCcbda8VvoERZwH5_77guqydedZz2Px-vXMOtE1542wK2rPS9CiCtYdHH9OHouI2t/exec";   // MUST look like https://script.google.com/macros/s/AKfy.../exec  (NOT a /macros/library/ link)
 /* Spam protection (Cloudflare Turnstile, free). Paste your SITE key here to turn it on.
    Leave empty to keep it off. The SECRET key goes in Apps Script, never here (see SETUP-GOOGLE-SHEET.md). */
 const BOOKING_API = /^https:\/\/script\.google\.com\//.test(BOOKING_API_URL) ? BOOKING_API_URL : "";   // not set up yet = WhatsApp only, no errors shown
