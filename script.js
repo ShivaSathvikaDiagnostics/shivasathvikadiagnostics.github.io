@@ -496,6 +496,7 @@ function resetTurnstile() { tsToken = ""; if (tsWidget !== null && window.turnst
 function clearBkForm() {
   const f = $("#bkForm"); if (f) f.reset();   // the doctor box goes back to "Self"
   bk("bkOtherWrap").hidden = true;
+  { const ls = $("#lmSearch"); if (ls) ls.value = ""; }
   buildDayOptions();
   syncGender();
   const dw = $("#bkDoctorWrap"); if (dw) { dw.hidden = true; $("#docToggle").hidden = false; $("#docToggle").setAttribute("aria-expanded", "false"); }
@@ -520,7 +521,7 @@ const fmtPhone = (p) => "+91 " + p.slice(0, 5) + " " + p.slice(5);
 const DETAIL_KEY = "ssdl_patient";
 const bk = (id) => $("#" + id);
 function readDetails() {
-  const lm = bk("bkLandmark").value === "Other" ? clean(bk("bkOther").value, 60) : (LANDMARKS.includes(bk("bkLandmark").value) ? bk("bkLandmark").value : "");
+  const lm = bk("bkLandmark").value === "Other" ? clean(bk("bkOther").value.replace(/[^\p{L}\p{M} ]/gu, ""), 25) : (LANDMARKS.includes(bk("bkLandmark").value) ? bk("bkLandmark").value : "");
   return { name: clean(bk("bkName").value, 60), age: (() => { const a = parseInt(bk("bkAge").value, 10); return Number.isFinite(a) ? String(a).slice(0, 3) : ""; })(), phone: indianPhone(bk("bkPhone").value),
     doctor: (/^\s*(dr\.?)?\s*$/i.test(bk("bkDoctor").value) ? "" : clean(bk("bkDoctor").value, 60)) || "Self", landmark: lm,
     gender: ["Male", "Female", "Other"].includes(bk("bkGender").value) ? bk("bkGender").value : "" };
@@ -628,6 +629,63 @@ async function submitBooking(d) {
   LANDMARKS.forEach((l) => sel.append(new Option(l, l)));
   sel.append(new Option("Other (type below)", "Other"));
   sel.addEventListener("change", () => { bk("bkOtherWrap").hidden = sel.value !== "Other"; });
+  /* Searchable landmark / area box (the select above stays as the stored value) */
+  (function landmarkSearch() {
+    const inp = $("#lmSearch"), list = $("#lmList"), tog = $("#lmToggle"); if (!inp || !list) return;
+    let items = [], active = -1;
+    const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+    const close = () => { list.hidden = true; inp.setAttribute("aria-expanded", "false"); active = -1; };
+    const choose = (val, typed) => {
+      sel.value = val;
+      if (val === "Other") { bk("bkOther").value = typed || ""; inp.value = typed || "Other"; }
+      else inp.value = val;
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+      close();
+    };
+    const mark = (i) => { active = i; $$("li", list).forEach((li, k) => { li.classList.toggle("on", k === i); li.setAttribute("aria-selected", String(k === i)); }); const el = $$("li", list)[i]; if (el) el.scrollIntoView({ block: "nearest" }); };
+    function render() {
+      const q = norm(inp.value); items = []; list.replaceChildren();
+      list.append(h("li", "lm-head", "Areas in Chikkaballapur"));
+      const qraw = inp.value.trim();
+      const scored = LANDMARKS.map((l, idx) => {
+        const areas = LANDMARK_AREAS[l];
+        const sc = !qraw ? 0 : [l].concat(areas).map((a) => fuzzyScore(qraw, a)).filter((v) => v >= 0).reduce((m, v) => Math.min(m, v), 99);
+        return { l, areas, sc, idx };
+      }).filter((x) => x.sc < 99).sort((a, b) => a.sc - b.sc || a.idx - b.idx);
+      scored.forEach(({ l, areas }) => {
+        const li = h("li", "lm-item"); li.setAttribute("role", "option");
+        li.append(h("b", "", l));
+        const others = areas.filter((a) => a !== l);
+        if (others.length) li.append(h("span", "", "Also: " + others.join(", ")));
+        li.addEventListener("mousedown", (e) => { e.preventDefault(); choose(l); });
+        items.push(li); list.append(li);
+      });
+      if (!items.length) list.append(h("li", "lm-empty", "No listed area matches \u201c" + inp.value.trim() + "\u201d."));
+      const typed = inp.value.trim();
+      const o = h("li", "lm-item lm-other"); o.setAttribute("role", "option");
+      o.append(h("b", "", typed ? "My area is not listed: use \u201c" + typed + "\u201d" : "Other (type your area)"));
+      o.addEventListener("mousedown", (e) => { e.preventDefault(); if (typed) choose("Other", typed); else { sel.value = "Other"; sel.dispatchEvent(new Event("change", { bubbles: true })); close(); bk("bkOther").focus(); } });
+      items.push(o); list.append(o);
+      list.hidden = false; inp.setAttribute("aria-expanded", "true"); active = -1;
+    }
+    const lmClean = (el) => { const v = el.value.replace(/[^\p{L}\p{M} ]/gu, "").replace(/ {2,}/g, " ").slice(0, 25); if (v !== el.value) el.value = v; };   // letters and spaces only, max 25
+    inp.addEventListener("input", () => lmClean(inp), true);
+    bk("bkOther").addEventListener("input", () => lmClean(bk("bkOther")));
+    inp.addEventListener("focus", render);
+    inp.addEventListener("input", () => { sel.value = ""; bk("bkOtherWrap").hidden = true; render(); });
+    tog.addEventListener("mousedown", (e) => { e.preventDefault(); if (list.hidden) { inp.focus(); render(); } else close(); });
+    inp.addEventListener("blur", () => setTimeout(close, 120));
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (list.hidden) render(); const n = items.length; if (n) mark(e.key === "ArrowDown" ? (active + 1) % n : (active - 1 + n) % n); }
+      else if (e.key === "Enter" && !list.hidden) {
+        e.stopPropagation(); e.preventDefault();
+        if (active >= 0) items[active].dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+        else if (items.length > 1 && norm(inp.value)) items[0].dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+        else close();
+      } else if (e.key === "Escape" && !list.hidden) { e.stopPropagation(); close(); }
+    });
+    inp.addEventListener("input", () => { bk("e-bkLandmark").textContent = ""; inp.removeAttribute("aria-invalid"); });
+  })();
   /* Doctor name starts with "Dr. "; empty or just "Dr." is sent as "Self" */
   bk("bkDoctor").addEventListener("focus", (e) => { const t = e.target; setTimeout(() => { const n = t.value.length; try { t.setSelectionRange(n, n); } catch (x) {} }, 0); });
   bk("bkDoctor").addEventListener("blur", (e) => { if (/^\s*(dr\.?)?\s*$/i.test(e.target.value)) e.target.value = "Dr. "; });
@@ -643,7 +701,7 @@ async function submitBooking(d) {
   /* Enter / Next on the keyboard moves to the next field of the booking form; on the last one it closes the keyboard */
   const chain = () => {
     const out = [];
-    ["bkName", "bkAge", "gender", "bkPhone", "bkDoctor", "bkLandmark", "bkOther"].forEach((id) => {
+    ["bkName", "bkAge", "gender", "bkPhone", "bkDoctor", "lmSearch", "bkOther"].forEach((id) => {
       if (id === "gender") { if (!bk("bkGender").value) { const b = $("#genderSeg button"); if (b) out.push(b); } return; }
       const el = bk(id); if (el && !el.closest("[hidden]") && el.offsetParent !== null) out.push(el);
     });
@@ -724,7 +782,7 @@ function validateBk() {
     bk(id).toggleAttribute("aria-invalid", !!errs[id]);
   });
   const first = Object.keys(errs)[0];
-  if (first) { const el = first === "bkGender" ? ($("#genderSeg button") || bk(first)) : bk(first); el.focus({ preventScroll: true }); const sc = $("#cartDialog .ct-body"), er = bk("e-" + first); if (sc && er) sc.scrollTo({ top: sc.scrollTop + er.getBoundingClientRect().top - sc.getBoundingClientRect().top - 140, behavior: reduceMotion ? "auto" : "smooth" }); return null; }
+  if (first) { const el = first === "bkGender" ? ($("#genderSeg button") || bk(first)) : first === "bkLandmark" ? $("#lmSearch") : bk(first); el.focus({ preventScroll: true }); const sc = $("#cartDialog .ct-body"), er = bk("e-" + first); if (sc && er) sc.scrollTo({ top: sc.scrollTop + er.getBoundingClientRect().top - sc.getBoundingClientRect().top - 140, behavior: reduceMotion ? "auto" : "smooth" }); return null; }
   return d;
 }
 
@@ -789,13 +847,13 @@ function syncBtn(b) {
   b.textContent = on ? "✓ Added" + (n > 1 ? " ×" + n : "") : (b.classList.contains("rb") ? "Add" : "Add to My Tests");
   b.classList.toggle("added", on);
   b.setAttribute("aria-pressed", String(on));
-  if (it) b.setAttribute("aria-label", it.name + (on ? " is in My Tests." : ": add to My Tests"));
+  if (it) b.setAttribute("aria-label", it.name + (on ? " is in My Tests. Tap to remove." : ": add to My Tests"));
   if (was !== undefined && was !== b.dataset.on && !reduceMotion) { b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
 }
 function addBtn(id, cls) { const b = btn("", cls, () => onAddTap(id, b)); b.dataset.add = id; syncBtn(b); return b; }
 function onAddTap(id, src) {
   const it = getItem(id); if (!it) return;
-  if (find(id)) { toast(it.name + " is already in My Tests.", "View", "#cart"); return; }   // one of each test only
+  if (find(id)) { removeItem(id); return; }   // tapping a selected test again removes it
   const ov = overlapText(id);
   if (ov) {
     ask("Please check your list", ov + " Do you still want to add it?", [
@@ -811,7 +869,7 @@ function addItem(id, src) {
   lastAdd = itemColour(id); holdTubeFor();
   saveCart(); renderCart(); fxAdd(); fly(src, lastAdd);
   document.dispatchEvent(new Event("ssdl:added"));
-  toast(getItem(id).name + " added to My Tests.", "View", "#cart");
+  if (!isPhone()) toast(getItem(id).name + " added to My Tests.", "View", "#cart");   // no popup on phones
 }
 function changeQty(id, d, src) {
   const x = find(id); if (!x) return;
@@ -891,7 +949,6 @@ $$("#ctTabs [data-step]").forEach((t) => t.addEventListener("click", () => {
   setStep(+t.dataset.step);
 }));
 $("#ctNext").addEventListener("click", () => setStep(2));
-$("#ctEdit").addEventListener("click", () => setStep(1));
 let formOpenedAt = Date.now();   // sent with a booking so the server can tell a person from a script
 function openCart(step) { if (!cart.length && isPhone()) { openPicker(); return; } formOpenedAt = Date.now(); setStep(step || (cart.length ? 2 : 1)); renderCart(); setMenu(false); if (!cartDlg.open) cartDlg.showModal(); refreshSlots(); setupTurnstile(); }
 $("#ctClose").addEventListener("click", () => cartDlg.close());
@@ -983,12 +1040,14 @@ function wipeBooking() {
 function closeDone() { doneDlg.close(); $("#doneDet").replaceChildren(); }   // patient details do not stay on the page
 $("#doneClose").addEventListener("click", closeDone);
 doneDlg.addEventListener("cancel", (e) => { e.preventDefault(); closeDone(); });
+let lastBookAt = 0;
 $("#ctGo").addEventListener("click", async (e) => {
   e.preventDefault();
   const go = e.currentTarget;
   if (go.getAttribute("aria-disabled") === "true" || go.dataset.busy) return;
   const d = validateBk();
   if (!d) return;
+  if (Date.now() - lastBookAt < 60000) { const h2 = $("#ctHint"); h2.hidden = false; h2.textContent = "Your booking was just sent. Please wait a minute before booking again, or call the lab on 8217654091."; return; }   // stops repeat or automated submits
   if (TURNSTILE_SITE_KEY && !tsToken) { const h = $("#ctHint"); h.hidden = false; h.textContent = "Please wait for the security check to finish, then tap Book again."; setupTurnstile(); return; }
   go.dataset.busy = "1"; go.setAttribute("aria-disabled", "true"); go.classList.add("loading");
   const label = go.textContent; go.textContent = "Booking…";
@@ -1016,6 +1075,7 @@ $("#ctGo").addEventListener("click", async (e) => {
     refreshSlots();
     return;
   }
+  lastBookAt = Date.now();
   await finishBookingProgress(true);
   const o = +bk("bkDay").value, when = (o ? "Tomorrow" : "Today") + ", " + dayLabel(o);
   const info = { when, name: d.name, age: d.age, gender: d.gender, phone: d.phone, doctor: d.doctor, landmark: d.landmark, tests: cartLines() };
@@ -1110,6 +1170,28 @@ PACKAGES.forEach((p, i) => {
   $("#pkgGrid").append(c);
 });
 
+/* Forgiving search: ignores dots, spaces, dashes and capitals, and accepts part of a word or a small typo.
+   "ak colo" finds "A.K. Colony"; "hba1c" finds "HbA1c"; "thyrid" finds "Thyroid". Lower score = better match. */
+function fzCompact(x) { return String(x || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function fzDist(a, b) {
+  const m = a.length, n = b.length; let prev = []; for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+function fuzzyScore(query, target) {
+  const qc = fzCompact(query), tc = fzCompact(target);
+  if (!qc) return 0;
+  if (!tc) return -1;
+  if (tc.startsWith(qc)) return 0;
+  if (tc.includes(qc)) return 1;
+  const toks = String(query).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (toks.length > 1 && toks.every((w) => tc.includes(w))) return 2;
+  if (qc.length >= 3) { let i = 0; for (let k = 0; k < tc.length && i < qc.length; k++) if (tc[k] === qc[i]) i++; if (i === qc.length && qc.length >= 4) return 3; }
+  if (qc.length >= 4) {
+    for (let len = qc.length - 1; len <= qc.length + 1; len++) for (let st = 0; st + len <= tc.length; st++) if (fzDist(qc, tc.slice(st, st + len)) <= 1) return 4;
+  }
+  return -1;
+}
 /* Search: every word typed must appear in the test name, category or plain description,
    so "sugar", "thyroid" or "fever" also find the right tests. Name matches come first. */
 function testRank(t, words) {
@@ -1124,8 +1206,13 @@ function searchTests(q) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return TESTS.slice();
   const hits = (t) => { const nd = (t.name + " " + t.desc).toLowerCase(); return words.reduce((n, w) => n + nd.split(w).length - 1, 0); };
-  return TESTS.map((t) => [t, testRank(t, words)]).filter((x) => x[1] >= 0)
+  const strict = TESTS.map((t) => [t, testRank(t, words)]).filter((x) => x[1] >= 0)
     .sort((a, b) => a[1] - b[1] || hits(b[0]) - hits(a[0]) || a[0].name.localeCompare(b[0].name)).map((x) => x[0]);
+  /* forgiving extras: partial words, dots/spaces ignored, small typos */
+  const have = new Set(strict);
+  const extra = TESTS.filter((t) => !have.has(t)).map((t) => [t, Math.min(fuzzyScore(q, t.name), 99) < 0 ? -1 : fuzzyScore(q, t.name)]).filter((x) => x[1] >= 0)
+    .sort((a, b) => a[1] - b[1] || a[0].name.localeCompare(b[0].name)).map((x) => x[0]);
+  return strict.concat(extra);
 }
 
 /* Catalogue: category tiles, then a compact list. Search looks through every test. */
@@ -1143,13 +1230,29 @@ const CAT_INFO = {
   U: { e: "💧", plain: "Urine Tests", what: "Checks urine for infection, sugar, protein and kidney problems." },
   S: { e: "🧫", plain: "Stool Tests", what: "Finds stomach infections, worms and hidden blood." }
 };
+const CAT_SVG = {
+  H: '<path d="M12 3s6 6.2 6 10.5a6 6 0 0 1-12 0C6 9.2 12 3 12 3z"/><path d="M9.5 14.5a2.6 2.6 0 0 0 2.2 2"/>',
+  B: '<path d="M9 3h6"/><path d="M10 3v6l-5.2 9.2A2 2 0 0 0 6.6 21h10.8a2 2 0 0 0 1.8-2.8L14 9V3"/><path d="M7.6 15h8.8"/>',
+  L: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"/><path d="M7.5 12.5h2l1.4-2.4 2.2 4.4 1.4-2H16.5"/>',
+  V: '<path d="M3.5 11c0-3.4 3.6-5.5 8.5-5.5 5 0 8.5 2.2 8.5 5.2 0 4.6-4 8-9 8-2 0-3.2-1-3.2-2.8 0-1.8-3.3-1.2-4.8-4.9z"/><path d="M14 9.5c1 .3 2 1 2.4 2"/>',
+  O: '<path d="M12 8.5C10.6 5.6 6 5.2 5 8.4c-.9 2.8 1.6 6 5 5.6 1.4-.2 2-.9 2-2"/><path d="M12 8.5c1.4-2.9 6-3.3 7-.1.9 2.8-1.6 6-5 5.6-1.4-.2-2-.9-2-2"/><path d="M12 8.5v10.5"/>',
+  R: '<path d="M12 3l7.5 3v5.3c0 4.6-3.2 8.1-7.5 9.7-4.3-1.6-7.5-5.1-7.5-9.7V6z"/><path d="M8.8 12l2.3 2.3 4.2-4.6"/>',
+  M: '<path d="M3.5 11h17"/><path d="M4.5 11v2.8A4.2 4.2 0 0 0 8.7 18h6.6a4.2 4.2 0 0 0 4.2-4.2V11"/><circle cx="9" cy="7" r="1.6"/><circle cx="14.5" cy="6" r="1.1"/><circle cx="13" cy="8.6" r=".8"/>',
+  U: '<path d="M6 3.5h12V7H6z"/><path d="M7 7l1 13h8l1-13"/><path d="M7.8 13h8.4"/>',
+  S: '<path d="M9 3h6"/><path d="M10 3v13.2a2 2 0 0 0 4 0V3"/><path d="M10 10.5h4"/><circle cx="12" cy="16.6" r=".7"/>'
+};
+function catIcon(key, cls) {
+  const sp = document.createElement("span"); sp.className = "cat-svg" + (cls ? " " + cls : ""); sp.setAttribute("aria-hidden", "true");
+  sp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false">' + (CAT_SVG[key] || CAT_SVG.B) + "</svg>";
+  return sp;
+}
 Object.entries(CATS).forEach(([key, label]) => {
   const list = TESTS.filter((t) => t.catKey === key);
   const info = CAT_INFO[key] || { e: key, plain: label, what: "" };
   const b = h("button", "tile");
   b.type = "button"; b.dataset.cat = key;
   b.setAttribute("aria-label", info.plain + " (" + label + "), " + list.length + " tests");
-  b.append(h("span", "ico", info.e), h("b", "", info.plain), h("span", "tile-lab", "Lab name: " + label), h("span", "tile-what", info.what), h("span", "tile-n", list.length + " tests"));
+  b.append(catIcon(key, "ico"), h("b", "", info.plain), h("span", "tile-lab", "Lab name: " + label), h("span", "tile-what", info.what), h("span", "tile-n", list.length + " tests"));
   b.addEventListener("click", () => { setCat(key); $("#tests").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" }); });
   tilesEl.append(b);
 });
@@ -1179,7 +1282,8 @@ function renderCatalogue() {
     const chips = h("div", "cat-chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Choose one or more groups");
     Object.keys(CATS).forEach((k) => {
       const ci = CAT_INFO[k] || { e: k, plain: CATS[k] }, on = state.cats.has(k);
-      const c = btn((on ? "✓ " : "") + ci.e + " " + ci.plain, "cat-chip" + (on ? " on" : ""), () => toggleCat(k));
+      const c = btn((on ? "✓ " : "") + ci.plain, "cat-chip" + (on ? " on" : ""), () => toggleCat(k));
+      c.prepend(catIcon(k, "chip-ic"));
       c.setAttribute("aria-pressed", String(on));
       chips.append(c);
     });
@@ -1224,7 +1328,11 @@ const NEEDS = [
 ];
 (function needPicker() {
   const box = $("#need"); if (!box) return;
-  box.append(h("p", "need-q", "Not sure which test? Tap what you need:"));
+  box.append(h("p", "need-q", "Not sure which test? Tap what you need"));
+  const tg = h("button", "need-toggle"); tg.type = "button"; tg.setAttribute("aria-expanded", "false");
+  tg.append(h("b", "", "Not sure which test? Tap here"), h("i", "", "\u25BE"));
+  tg.addEventListener("click", () => { const o = !box.classList.contains("open"); box.classList.toggle("open", o); tg.setAttribute("aria-expanded", String(o)); });
+  box.prepend(tg);
   const row = h("div", "need-row"), panel = h("div", "need-panel"); panel.hidden = true; panel.setAttribute("aria-live", "polite");
   const find = (name) => TEST_MAP.get(slug(name));
   const pkgOf = (name) => PACKAGES.find((p) => p.name === name);
@@ -1233,7 +1341,7 @@ const NEEDS = [
     const n = NEEDS[i];
     $$("button", row).forEach((b, k) => b.setAttribute("aria-pressed", String(k === i)));
     panel.replaceChildren();
-    panel.append(h("h3", "", n.e + " " + n.t), h("p", "need-why", n.why));
+    panel.append(h("h3", "", n.t), h("p", "need-why", n.why));
     [n.pkg].concat(n.more || []).filter(Boolean).forEach((name, k) => {
       const p = pkgOf(name); if (!p) return;
       const r = h("div", "need-item need-pkg"), d = h("div", "need-name");
@@ -1252,7 +1360,7 @@ const NEEDS = [
   }
   NEEDS.forEach((n, i) => {
     const b = h("button", "need-chip"); b.type = "button"; b.setAttribute("aria-pressed", "false");
-    b.append(h("span", "", n.e), h("b", "", n.t));
+    b.append(h("b", "", n.t));
     b.addEventListener("click", () => {
       if (openIdx === i) { panel.hidden = true; openIdx = -1; b.setAttribute("aria-pressed", "false"); return; }
       show(i); if (IS_MOBILE) panel.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
@@ -1290,6 +1398,7 @@ function renderSuggest() {
   const q = heroQ.value.trim();
   suggest.replaceChildren();
   sugActive = -1;
+  if (!q) { sugItems = []; hideSuggest(); return; }   // nothing typed: do not list all tests
   sugItems = searchTests(q);
   suggest.append(h("li", "sg-head", q
     ? sugItems.length + (sugItems.length === 1 ? " test found. Tap it to add." : " tests found. Tap a test to add it.")
@@ -1732,7 +1841,7 @@ renderCatalogue();
     note = h("p", "how-fail", "The video could not load. Please check your internet and try again, or follow the four steps below.");
     box.after(note);
   }, true);
-  $("#howBtn").addEventListener("click", () => {
+  const howBtnEl = $("#howBtn"); if (howBtnEl) howBtnEl.addEventListener("click", () => {
     dlg.showModal();
     try {
       if (note || vid.error || vid.networkState === 3) { clearNote(); vid.load(); }   // try again from scratch
@@ -1881,19 +1990,16 @@ function renderPicker() {
     body.append(h("p", "small", "These are common tests, not a diagnosis. Your doctor decides what you need."));
   } else if (pk.view === "cat") {
     const ci = CAT_INFO[pk.key] || { e: "", plain: CATS[pk.key], what: "" }; back("All types");
-    body.append(h("h3", "pk-t", ci.e + " " + ci.plain), h("p", "pk-why", ci.what));
+    { const t3 = h("h3", "pk-t", " " + ci.plain); t3.prepend(catIcon(pk.key, "pk-ic")); body.append(t3, h("p", "pk-why", ci.what)); }
     TESTS.filter((t) => t.catKey === pk.key).forEach((t) => body.append(pkRow(t)));
   } else {
-    body.append(h("p", "pk-h", "Not sure? Tap what you need"));
-    const g = h("div", "pk-needs");
-    NEEDS.forEach((n, i) => { const b = h("button", "pk-need"); b.type = "button"; b.append(h("span", "", n.e), h("b", "", n.t)); b.addEventListener("click", () => pkGo("need", i)); g.append(b); });
-    body.append(g, h("p", "pk-h", "Popular tests"));
+    body.append(h("p", "pk-h", "Popular tests"));
     POPULAR_TEST_IDS.map((id) => TEST_MAP.get(id)).filter(Boolean).forEach((t) => body.append(pkRow(t)));
     body.append(h("p", "pk-h", "Or browse by type"));
     const cl = h("div", "pk-cats");
     Object.keys(CATS).forEach((k) => {
       const ci = CAT_INFO[k] || { e: "", plain: CATS[k] }, b = h("button", "pk-cat"); b.type = "button";
-      b.append(h("span", "", ci.e), h("b", "", ci.plain), h("em", "", TESTS.filter((t) => t.catKey === k).length + " tests"));
+      b.append(catIcon(k, "pk-ico"), h("b", "", ci.plain), h("em", "", TESTS.filter((t) => t.catKey === k).length + " tests"));
       b.addEventListener("click", () => pkGo("cat", -1, k)); cl.append(b);
     });
     body.append(cl);
