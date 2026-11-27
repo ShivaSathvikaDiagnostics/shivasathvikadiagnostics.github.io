@@ -522,8 +522,8 @@ const DETAIL_KEY = "ssdl_patient";
 const bk = (id) => $("#" + id);
 function readDetails() {
   const lm = bk("bkLandmark").value === "Other" ? clean(bk("bkOther").value.replace(/[^\p{L}\p{M} ]/gu, ""), 25) : (LANDMARKS.includes(bk("bkLandmark").value) ? bk("bkLandmark").value : "");
-  return { name: clean(bk("bkName").value, 60), age: (() => { const a = parseInt(bk("bkAge").value, 10); return Number.isFinite(a) ? String(a).slice(0, 3) : ""; })(), phone: indianPhone(bk("bkPhone").value),
-    doctor: (/^\s*(dr\.?)?\s*$/i.test(bk("bkDoctor").value) ? "" : clean(bk("bkDoctor").value, 60)) || "Self", landmark: lm,
+  return { name: clean(bk("bkName").value, 60).toUpperCase(), age: (() => { const a = parseInt(bk("bkAge").value, 10); return Number.isFinite(a) ? String(a).slice(0, 3) : ""; })(), phone: indianPhone(bk("bkPhone").value),
+    doctor: (/^\s*(dr\.?)?\s*$/i.test(bk("bkDoctor").value) ? "" : clean(bk("bkDoctor").value, 60).toUpperCase()) || "SELF", landmark: lm,
     gender: ["Male", "Female", "Other"].includes(bk("bkGender").value) ? bk("bkGender").value : "" };
 }
 function dayLabel(offset) {
@@ -688,10 +688,10 @@ async function submitBooking(d) {
   })();
   /* Doctor name starts with "Dr. "; empty or just "Dr." is sent as "Self" */
   bk("bkDoctor").addEventListener("focus", (e) => { const t = e.target; setTimeout(() => { const n = t.value.length; try { t.setSelectionRange(n, n); } catch (x) {} }, 0); });
-  bk("bkDoctor").addEventListener("blur", (e) => { if (/^\s*(dr\.?)?\s*$/i.test(e.target.value)) e.target.value = "Dr. "; });
-  /* Capital letter at the start of every word, while typing (name and doctor) */
+  bk("bkDoctor").addEventListener("blur", (e) => { if (/^\s*(dr\.?)?\s*$/i.test(e.target.value)) e.target.value = "DR. "; });
+  /* ALL CAPITALS while typing (patient name and doctor name) */
   const capWords = (el) => {
-    const v = el.value, c = v.replace(/(^|[\s.])([a-z\u00e0-\u024f])/g, (m, a, b) => a + b.toUpperCase());
+    const v = el.value, c = v.toUpperCase();
     if (c !== v) { const p = el.selectionStart; el.value = c; try { el.setSelectionRange(p, p); } catch (x) {} }
   };
   ["bkName", "bkDoctor"].forEach((id) => bk(id).addEventListener("input", (e) => capWords(e.target)));
@@ -745,7 +745,7 @@ function syncGender() { $$("#genderSeg button").forEach((b) => { const on = b.da
   const liveCheck = (id) => {
     const v = bk(id).value.trim(); if (!v) return; let m = "";
     if (id === "bkName") { if (v.length < 2 || !NAME_OK.test(v)) m = "Use letters only in the name."; }
-    else if (id === "bkAge") { const a = Number(v); if (!/^\d{1,3}$/.test(v)) m = "Age must be numbers only."; else if (a < 7 || a > 109) m = "We can book online only for ages 7 to 109. Please call the lab on 8217654091 to book."; }
+    else if (id === "bkAge") { const a = Number(v); if (!/^\d{1,3}$/.test(v)) m = "Age must be numbers only."; else if (a < 7 || a > 90) m = "We can book online only for ages 7 to 90. Please call the lab on 8217654091 to book."; }
     else if (!/^\d{10}$/.test(v)) m = "Phone number must be exactly 10 digits.";
     else if (!indianPhone(v)) m = "Enter a valid mobile number (starts with 6, 7, 8 or 9).";
     bk("e-" + id).textContent = m; bk(id).toggleAttribute("aria-invalid", !!m);
@@ -770,7 +770,7 @@ function validateBk() {
   const rawAge = bk("bkAge").value.trim(), age = Number(rawAge);
   if (!rawAge) errs.bkAge = "Please enter the age in numbers.";
   else if (!/^\d{1,3}$/.test(rawAge)) errs.bkAge = "Age must be numbers only.";
-  else if (age < 7 || age > 109) errs.bkAge = "We can book online only for ages 7 to 109. Please call the lab on 8217654091 to book.";
+  else if (age < 7 || age > 90) errs.bkAge = "We can book online only for ages 7 to 90. Please call the lab on 8217654091 to book.";
   const rawPhone = bk("bkPhone").value;
   if (!/^\d{10}$/.test(rawPhone)) errs.bkPhone = "Phone number must be exactly 10 digits.";
   else if (!d.phone) errs.bkPhone = "Enter a valid mobile number (starts with 6, 7, 8 or 9).";
